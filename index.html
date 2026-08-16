@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home Schooling & Sports Training Hub</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #7c3aed;
+      --primary-dark: #5b21b6;
+      --border: #e5e7eb;
+      --todo: #f3f4f6;
+      --progress: #dbeafe;
+      --done: #d1fae5;
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+    button { font: inherit; cursor: pointer; }
+    input, select, textarea { font: inherit; }
+
+    .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .login-card { background: var(--card); padding: 32px; border-radius: 16px; box-shadow: var(--shadow); width: 100%; max-width: 400px; }
+    .login-card h1 { margin: 0 0 8px; font-size: 22px; }
+    .login-card p { margin: 0 0 24px; color: var(--muted); font-size: 14px; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .field input, .field select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+    .btn { padding: 10px 16px; border: none; border-radius: 8px; background: var(--primary); color: #fff; font-weight: 600; }
+    .btn:hover { background: var(--primary-dark); }
+    .btn-block { width: 100%; }
+    .btn-danger { background: #ef4444; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-ghost { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
+    .error { color: #dc2626; font-size: 13px; margin-top: 8px; }
+    .hint { margin-top: 16px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+    .app { display: none; min-height: 100vh; }
+    .app.active { display: flex; }
+    .sidebar { width: 220px; background: var(--card); border-right: 1px solid var(--border); padding: 20px; }
+    .sidebar h2 { margin: 0 0 20px; font-size: 18px; }
+    .nav-item { width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px; margin-bottom: 6px; background: transparent; color: var(--text); border: none; font-weight: 500; }
+    .nav-item.active, .nav-item:hover { background: var(--bg); }
+    .main { flex: 1; display: flex; flex-direction: column; }
+    .header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .header h2 { margin: 0; font-size: 18px; }
+    .header .meta { display: flex; align-items: center; gap: 16px; }
+    .board { flex: 1; padding: 24px; overflow-x: auto; }
+    .columns { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 20px; min-width: 800px; }
+    .column { background: var(--bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border); }
+    .column h3 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .tasks { display: flex; flex-direction: column; gap: 12px; }
+    .task { background: var(--card); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); cursor: pointer; }
+    .task:hover { transform: translateY(-2px); transition: transform 0.1s; }
+    .task-title { font-weight: 600; margin-bottom: 8px; }
+    .task-meta { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .priority-high { background: #fee2e2; color: #991b1b; }
+    .priority-medium { background: #fef3c7; color: #92400e; }
+    .priority-low { background: #d1fae5; color: #065f46; }
+    .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
+
+    .fab { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 28px; border: none; box-shadow: var(--shadow); display: flex; align-items: center; justify-content: center; }
+    .fab:hover { background: var(--primary-dark); }
+    .hidden { display: none !important; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: var(--card); border-radius: 12px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow); }
+    .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .modal-header h3 { margin: 0; }
+    .modal-body { padding: 20px 24px; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+    .close { background: transparent; border: none; font-size: 24px; line-height: 1; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="login" class="login-wrap">
+    <div class="login-card">
+      <h1>Training Hub</h1>
+      <p>Log in to manage home schooling and sports training.</p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" name="username" placeholder="manager, student1, student2" required>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" name="password" placeholder="Enter password" required>
+        </div>
+        <button type="submit" class="btn btn-block">Log In</button>
+        <div id="loginError" class="error" style="display:none">Invalid credentials.</div>
+      </form>
+      <div class="hint">
+        Demo accounts:<br>
+        <strong>manager</strong> / manager<br>
+        <strong>student1</strong> / student1<br>
+        <strong>student2</strong> / student2
+      </div>
+    </div>
+  </div>
+
+  <div id="app" class="app">
+    <aside class="sidebar">
+      <h2>Spaces</h2>
+      <button class="nav-item active" data-category="Home Schooling">Home Schooling</button>
+      <button class="nav-item" data-category="Sports Training">Sports Training</button>
+      <hr style="border:0;border-top:1px solid var(--border);margin:20px 0;">
+      <button id="resetBtn" class="btn btn-ghost btn-block" style="font-size:13px;">Reset Demo Data</button>
+    </aside>
+    <main class="main">
+      <header class="header">
+        <h2 id="pageTitle">Home Schooling</h2>
+        <div class="meta">
+          <span id="userLabel">User</span>
+          <button id="logoutBtn" class="btn">Log Out</button>
+        </div>
+      </header>
+      <div class="board">
+        <div class="columns" id="board"></div>
+      </div>
+    </main>
+    <button id="addTaskBtn" class="fab hidden" title="Add task">+</button>
+  </div>
+
+  <div id="modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Task</h3>
+        <button class="close" id="closeModal" aria-label="Close">&times;</button>
+      </div>
+      <form id="taskForm" class="modal-body">
+        <div class="field">
+          <label for="tTitle">Title</label>
+          <input id="tTitle" required>
+        </div>
+        <div class="field">
+          <label for="tCategory">Space</label>
+          <select id="tCategory"></select>
+        </div>
+        <div class="field">
+          <label for="tStatus">Status</label>
+          <select id="tStatus"></select>
+        </div>
+        <div class="field">
+          <label for="tAssignee">Assignee</label>
+          <select id="tAssignee"></select>
+        </div>
+        <div class="field">
+          <label for="tPriority">Priority</label>
+          <select id="tPriority">
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="tDue">Due Date</label>
+          <input id="tDue" type="date">
+        </div>
+        <div class="field">
+          <label for="tDesc">Description</label>
+          <textarea id="tDesc" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;resize:vertical;"></textarea>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button id="deleteTaskBtn" type="button" class="btn btn-danger hidden">Delete</button>
+        <div style="flex:1"></div>
+        <button id="cancelModal" type="button" class="btn btn-ghost">Cancel</button>
+        <button id="saveTaskBtn" type="button" class="btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const users = {
+      manager: { name: 'Manager', password: 'manager', role: 'manager' },
+      student1: { name: 'Student One', password: 'student1', role: 'student' },
+      student2: { name: 'Student Two', password: 'student2', role: 'student' }
+    };
+    const categories = ['Home Schooling', 'Sports Training'];
+    const statuses = ['To Do', 'In Progress', 'Done'];
+    const STORAGE_KEY = 'hst_tasks';
+    const USER_KEY = 'hst_user';
+
+    let currentUser = null;
+    let activeCategory = categories[0];
+    let tasks = [];
+
+    function generateId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+    function seedTasks() {
+      const today = new Date().toISOString().split('T')[0];
+      const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      return [
+        { id: generateId(), title: 'Math worksheet', category: 'Home Schooling', status: 'To Do', assignee: 'student1', priority: 'High', due: today, desc: 'Complete algebra worksheet p.12' },
+        { id: generateId(), title: 'Read history chapter', category: 'Home Schooling', status: 'In Progress', assignee: 'student2', priority: 'Medium', due: future, desc: 'Chapter 4: Ancient Rome' },
+        { id: generateId(), title: 'Daily 5k run', category: 'Sports Training', status: 'To Do', assignee: 'student1', priority: 'Medium', due: today, desc: 'Keep steady pace, log time' },
+        { id: generateId(), title: 'Stretching routine', category: 'Sports Training', status: 'Done', assignee: 'student2', priority: 'Low', due: today, desc: '15 min post-workout stretch' },
+      ];
+    }
+
+    function loadTasks() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      tasks = raw ? JSON.parse(raw) : seedTasks();
+      if (!raw) saveTasks();
+    }
+
+    function saveTasks() { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+
+    function setViews() {
+      if (currentUser) {
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('app').classList.add('active');
+        document.getElementById('userLabel').textContent = currentUser.name + ' (' + currentUser.role + ')';
+        document.getElementById('addTaskBtn').classList.toggle('hidden', currentUser.role !== 'manager');
+      } else {
+        document.getElementById('login').style.display = 'flex';
+        document.getElementById('app').classList.remove('active');
+      }
+    }
+
+    function renderBoard() {
+      document.getElementById('pageTitle').textContent = activeCategory;
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+      statuses.forEach(status => {
+        const col = document.createElement('div');
+        col.className = 'column';
+        col.innerHTML = '<h3>' + status + '</h3>';
+        const list = document.createElement('div');
+        list.className = 'tasks';
+        const filtered = tasks.filter(t => t.category === activeCategory && t.status === status);
+        if (filtered.length === 0) {
+          list.innerHTML = '<div class="empty">No tasks</div>';
+        } else {
+          filtered.forEach(task => {
+            const el = document.createElement('div');
+            el.className = 'task';
+            el.dataset.id = task.id;
+            const priorityClass = 'priority-' + task.priority.toLowerCase();
+            el.innerHTML = '<div class="task-title">' + escapeHtml(task.title) + '</div>' +
+              '<div class="task-meta">' +
+              '<span>Assignee: ' + (users[task.assignee]?.name || task.assignee) + '</span>' +
+              '<span>Due: ' + (task.due || '—') + '</span>' +
+              '<span><span class="badge ' + priorityClass + '">' + task.priority + '</span></span>' +
+              '</div>';
+            el.addEventListener('click', () => openTask(task.id));
+            list.appendChild(el);
+          });
+        }
+        col.appendChild(list);
+        board.appendChild(col);
+      });
+    }
+
+    function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+    function selectCategory(cat) {
+      activeCategory = cat;
+      document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.dataset.category === cat));
+      renderBoard();
+    }
+
+    function openTask(id) {
+      const task = id ? tasks.find(t => t.id === id) : null;
+      const isManager = currentUser.role === 'manager';
+      const editable = isManager || !task || task.assignee === currentUser.username;
+      document.getElementById('modalTitle').textContent = task ? 'Edit Task' : 'New Task';
+      document.getElementById('deleteTaskBtn').classList.toggle('hidden', !isManager || !task);
+
+      fillSelect('tCategory', categories, task ? task.category : activeCategory);
+      fillSelect('tStatus', statuses, task ? task.status : 'To Do');
+      fillSelect('tAssignee', Object.entries(users).filter(([k,u]) => u.role === 'student').map(([k,u]) => ({value:k, label:u.name})), task ? task.assignee : 'student1');
+
+      document.getElementById('tTitle').value = task ? task.title : '';
+      document.getElementById('tPriority').value = task ? task.priority : 'Medium';
+      document.getElementById('tDue').value = task ? task.due : '';
+      document.getElementById('tDesc').value = task ? task.desc : '';
+
+      ['tTitle','tCategory','tAssignee','tPriority','tDue','tDesc'].forEach(id => {
+        document.getElementById(id).disabled = !isManager;
+      });
+      document.getElementById('tStatus').disabled = !editable;
+      document.getElementById('saveTaskBtn').style.display = editable ? 'inline-block' : 'none';
+
+      document.getElementById('modal').dataset.id = id || '';
+      document.getElementById('modal').classList.add('active');
+    }
+
+    function fillSelect(id, items, selected) {
+      const sel = document.getElementById(id);
+      sel.innerHTML = '';
+      items.forEach(item => {
+        const opt = document.createElement('option');
+        if (typeof item === 'string') { opt.value = item; opt.textContent = item; }
+        else { opt.value = item.value; opt.textContent = item.label; }
+        if (opt.value === selected) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+
+    function closeModal() { document.getElementById('modal').classList.remove('active'); }
+
+    function saveTask() {
+      const id = document.getElementById('modal').dataset.id;
+      const values = {
+        title: document.getElementById('tTitle').value.trim(),
+        category: document.getElementById('tCategory').value,
+        status: document.getElementById('tStatus').value,
+        assignee: document.getElementById('tAssignee').value,
+        priority: document.getElementById('tPriority').value,
+        due: document.getElementById('tDue').value,
+        desc: document.getElementById('tDesc').value.trim()
+      };
+      if (!values.title) { alert('Title is required'); return; }
+
+      if (id) {
+        const idx = tasks.findIndex(t => t.id === id);
+        if (idx !== -1) {
+          if (currentUser.role === 'manager') {
+            tasks[idx] = { ...tasks[idx], ...values };
+          } else {
+            tasks[idx].status = values.status;
+          }
+        }
+      } else if (currentUser.role === 'manager') {
+        values.id = generateId();
+        tasks.push(values);
+      }
+      saveTasks();
+      renderBoard();
+      closeModal();
+    }
+
+    function deleteTask() {
+      const id = document.getElementById('modal').dataset.id;
+      if (id && confirm('Delete this task?')) {
+        tasks = tasks.filter(t => t.id !== id);
+        saveTasks();
+        renderBoard();
+        closeModal();
+      }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const u = document.getElementById('username').value.trim().toLowerCase();
+      const p = document.getElementById('password').value;
+      if (users[u] && users[u].password === p) {
+        currentUser = { ...users[u], username: u };
+        localStorage.setItem(USER_KEY, currentUser.username);
+        document.getElementById('loginError').style.display = 'none';
+        loadTasks();
+        setViews();
+        selectCategory(activeCategory);
+      } else {
+        document.getElementById('loginError').style.display = 'block';
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      currentUser = null;
+      localStorage.removeItem(USER_KEY);
+      setViews();
+    });
+
+    document.querySelectorAll('.nav-item').forEach(btn => {
+      btn.addEventListener('click', () => selectCategory(btn.dataset.category));
+    });
+
+    document.getElementById('addTaskBtn').addEventListener('click', () => openTask(null));
+    document.getElementById('closeModal').addEventListener('click', closeModal);
+    document.getElementById('cancelModal').addEventListener('click', closeModal);
+    document.getElementById('saveTaskBtn').addEventListener('click', saveTask);
+    document.getElementById('deleteTaskBtn').addEventListener('click', deleteTask);
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      if (confirm('Reset all tasks to demo data?')) {
+        tasks = seedTasks();
+        saveTasks();
+        renderBoard();
+      }
+    });
+
+    window.addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+
+    function init() {
+      const saved = localStorage.getItem(USER_KEY);
+      if (saved && users[saved]) {
+        currentUser = { ...users[saved], username: saved };
+      }
+      loadTasks();
+      setViews();
+      if (currentUser) selectCategory(activeCategory);
+    }
+
+    init();
+  </script>
+</body>
+</html>
