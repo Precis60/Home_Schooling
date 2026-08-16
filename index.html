@@ -6,7 +6,7 @@
   <title>Home Schooling & Sports Training Hub</title>
   <style>
     :root {
-      --bg: #f4f6f8;
+      --bg: #f8f9fb;
       --card: #ffffff;
       --text: #1f2937;
       --muted: #6b7280;
@@ -20,8 +20,8 @@
     }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
-    button { font: inherit; cursor: pointer; }
-    input, select, textarea { font: inherit; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
 
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
     .login-card { background: var(--card); padding: 32px; border-radius: 16px; box-shadow: var(--shadow); width: 100%; max-width: 400px; }
@@ -29,34 +29,54 @@
     .login-card p { margin: 0 0 24px; color: var(--muted); font-size: 14px; }
     .field { margin-bottom: 16px; }
     .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-    .field input, .field select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+    .field input, .field select, .field textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+    .field textarea { resize: vertical; }
     .btn { padding: 10px 16px; border: none; border-radius: 8px; background: var(--primary); color: #fff; font-weight: 600; }
     .btn:hover { background: var(--primary-dark); }
     .btn-block { width: 100%; }
     .btn-danger { background: #ef4444; }
     .btn-danger:hover { background: #b91c1c; }
     .btn-ghost { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
+    .btn-ghost:hover { background: rgba(124,58,237,0.06); }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
     .error { color: #dc2626; font-size: 13px; margin-top: 8px; }
     .hint { margin-top: 16px; font-size: 12px; color: var(--muted); line-height: 1.4; }
 
     .app { display: none; min-height: 100vh; }
     .app.active { display: flex; }
-    .sidebar { width: 220px; background: var(--card); border-right: 1px solid var(--border); padding: 20px; }
-    .sidebar h2 { margin: 0 0 20px; font-size: 18px; }
-    .nav-item { width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px; margin-bottom: 6px; background: transparent; color: var(--text); border: none; font-weight: 500; }
-    .nav-item.active, .nav-item:hover { background: var(--bg); }
-    .main { flex: 1; display: flex; flex-direction: column; }
-    .header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .sidebar { width: 280px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar-head { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .sidebar-head h2 { margin: 0; font-size: 16px; }
+    .sidebar-tree { flex: 1; overflow-y: auto; padding: 12px; }
+    .tree-space { margin-bottom: 14px; }
+    .space-name { font-weight: 700; font-size: 13px; color: var(--text); padding: 6px 4px; text-transform: uppercase; letter-spacing: 0.02em; }
+    .tree-folder { margin-left: 8px; }
+    .folder-row { display: flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: 6px; color: var(--text); font-size: 14px; }
+    .folder-row:hover, .folder-row.active { background: var(--bg); }
+    .chevron { width: 16px; text-align: center; color: var(--muted); font-size: 11px; }
+    .folder-icon { color: var(--muted); }
+    .folder-name { flex: 1; }
+    .tree-lists { margin-left: 22px; display: none; }
+    .tree-lists.open { display: block; }
+    .list-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+    .list-row:hover, .list-row.active { background: var(--bg); color: var(--primary); }
+    .list-row .count { margin-left: auto; font-size: 11px; background: var(--bg); padding: 1px 6px; border-radius: 10px; }
+    .sidebar-actions { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+    .sidebar-actions button { flex: 1; font-size: 12px; padding: 8px; }
+
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .header { background: var(--card); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
     .header h2 { margin: 0; font-size: 18px; }
-    .header .meta { display: flex; align-items: center; gap: 16px; }
+    .breadcrumb { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .header .meta { display: flex; align-items: center; gap: 12px; }
     .board { flex: 1; padding: 24px; overflow-x: auto; }
-    .columns { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 20px; min-width: 800px; }
+    .columns { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 20px; min-width: 860px; }
     .column { background: var(--bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border); }
     .column h3 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
     .tasks { display: flex; flex-direction: column; gap: 12px; }
     .task { background: var(--card); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); cursor: pointer; }
     .task:hover { transform: translateY(-2px); transition: transform 0.1s; }
-    .task-title { font-weight: 600; margin-bottom: 8px; }
+    .task-title { font-weight: 600; margin-bottom: 8px; font-size: 14px; }
     .task-meta { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
     .priority-high { background: #fee2e2; color: #991b1b; }
@@ -68,14 +88,27 @@
     .fab:hover { background: var(--primary-dark); }
     .hidden { display: none !important; }
 
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
     .modal-overlay.active { display: flex; }
-    .modal { background: var(--card); border-radius: 12px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow); }
-    .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .modal { background: var(--card); border-radius: 12px; width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow); }
+    .modal-header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
     .modal-header h3 { margin: 0; }
     .modal-body { padding: 20px 24px; }
     .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
     .close { background: transparent; border: none; font-size: 24px; line-height: 1; color: var(--muted); }
+
+    .pdf-preview { padding: 40px; line-height: 1.6; }
+    .pdf-preview h1 { font-size: 22px; margin-bottom: 8px; }
+    .pdf-preview .meta { color: #555; font-size: 13px; margin-bottom: 24px; }
+    .pdf-preview .section { margin-bottom: 20px; }
+    .pdf-preview .section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; color: #777; }
+    .pdf-preview .section p { margin: 0; white-space: pre-wrap; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+    }
   </style>
 </head>
 <body>
@@ -106,15 +139,21 @@
 
   <div id="app" class="app">
     <aside class="sidebar">
-      <h2>Spaces</h2>
-      <button class="nav-item active" data-category="Home Schooling">Home Schooling</button>
-      <button class="nav-item" data-category="Sports Training">Sports Training</button>
-      <hr style="border:0;border-top:1px solid var(--border);margin:20px 0;">
-      <button id="resetBtn" class="btn btn-ghost btn-block" style="font-size:13px;">Reset Demo Data</button>
+      <div class="sidebar-head">
+        <h2>Spaces</h2>
+      </div>
+      <div class="sidebar-tree" id="sidebarTree"></div>
+      <div class="sidebar-actions" id="sidebarActions">
+        <button id="addFolderBtn" class="btn btn-ghost btn-sm hidden">+ Folder</button>
+        <button id="addListBtn" class="btn btn-ghost btn-sm hidden">+ List</button>
+      </div>
     </aside>
     <main class="main">
       <header class="header">
-        <h2 id="pageTitle">Home Schooling</h2>
+        <div>
+          <h2 id="pageTitle">Home School</h2>
+          <div class="breadcrumb" id="pageBreadcrumb">Mathematics / Term One 2026 Lessons</div>
+        </div>
         <div class="meta">
           <span id="userLabel">User</span>
           <button id="logoutBtn" class="btn">Log Out</button>
@@ -139,8 +178,8 @@
           <input id="tTitle" required>
         </div>
         <div class="field">
-          <label for="tCategory">Space</label>
-          <select id="tCategory"></select>
+          <label for="tList">List</label>
+          <select id="tList"></select>
         </div>
         <div class="field">
           <label for="tStatus">Status</label>
@@ -164,10 +203,15 @@
         </div>
         <div class="field">
           <label for="tDesc">Description</label>
-          <textarea id="tDesc" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;resize:vertical;"></textarea>
+          <textarea id="tDesc" rows="3"></textarea>
+        </div>
+        <div class="field">
+          <label for="tNotes">Notes</label>
+          <textarea id="tNotes" rows="4" placeholder="Add notes, observations, or lesson feedback here..."></textarea>
         </div>
       </form>
       <div class="modal-footer">
+        <button id="printNotesBtn" type="button" class="btn btn-ghost hidden">Save Notes as PDF</button>
         <button id="deleteTaskBtn" type="button" class="btn btn-danger hidden">Delete</button>
         <div style="flex:1"></div>
         <button id="cancelModal" type="button" class="btn btn-ghost">Cancel</button>
@@ -176,33 +220,107 @@
     </div>
   </div>
 
+  <div id="printArea" class="pdf-preview" style="display:none"></div>
+
   <script>
     const users = {
       manager: { name: 'Manager', password: 'manager', role: 'manager' },
       student1: { name: 'Student One', password: 'student1', role: 'student' },
       student2: { name: 'Student Two', password: 'student2', role: 'student' }
     };
-    const categories = ['Home Schooling', 'Sports Training'];
     const statuses = ['To Do', 'In Progress', 'Done'];
     const STORAGE_KEY = 'hst_tasks';
+    const SPACE_KEY = 'hst_spaces';
     const USER_KEY = 'hst_user';
 
     let currentUser = null;
-    let activeCategory = categories[0];
+    let activeListId = null;
     let tasks = [];
+    let spaces = [];
+    const expandedFolders = new Set();
 
-    function generateId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+    function seedSpaces() {
+      return [
+        {
+          id: 'home-school',
+          name: 'Home School',
+          folders: [
+            {
+              id: 'math', name: 'Mathematics', lists: [
+                { id: 'math-t1', name: 'Term One 2026 Lessons' },
+                { id: 'math-t2', name: 'Term Two 2026 Lessons' },
+                { id: 'math-t3', name: 'Term Three 2026 Lessons' }
+              ]
+            },
+            {
+              id: 'pe', name: 'Physical Education', lists: [
+                { id: 'pe-t1', name: 'Term One 2026 Lessons' },
+                { id: 'pe-t3', name: 'Term Three 2026 Lessons' }
+              ]
+            },
+            {
+              id: 'science', name: 'Science', lists: [
+                { id: 'science-t1', name: 'Term One 2026 Lessons' },
+                { id: 'science-t2', name: 'Term Two 2026 Lessons' },
+                { id: 'science-t3', name: 'Term Three 2026 Lessons' }
+              ]
+            },
+            {
+              id: 'business', name: 'Business & Legal', lists: [
+                { id: 'business-t1', name: 'Term One 2026 Lessons' },
+                { id: 'business-t2', name: 'Term Two 2026 Lessons' }
+              ]
+            },
+            {
+              id: 'economics', name: 'Economics & Investment', lists: [
+                { id: 'economics-t1', name: 'Term One 2026 Lessons' },
+                { id: 'economics-t2', name: 'Term Two 2026 Lessons' }
+              ]
+            },
+            {
+              id: 'english', name: 'English', lists: [
+                { id: 'english-t1', name: 'Term One 2026 Lessons' },
+                { id: 'english-t2', name: 'Term Two 2026 Lessons' }
+              ]
+            }
+          ]
+        },
+        {
+          id: 'sporting',
+          name: 'Sporting Activities',
+          folders: [
+            {
+              id: 'sporting-pe', name: 'Physical Education', lists: [
+                { id: 'sporting-t3', name: 'Term Three 2026 Lessons' },
+                { id: 'sporting-t3-afternoon', name: 'Term Three 2026 Afternoon Sport' }
+              ]
+            }
+          ]
+        }
+      ];
+    }
 
     function seedTasks() {
       const today = new Date().toISOString().split('T')[0];
       const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       return [
-        { id: generateId(), title: 'Math worksheet', category: 'Home Schooling', status: 'To Do', assignee: 'student1', priority: 'High', due: today, desc: 'Complete algebra worksheet p.12' },
-        { id: generateId(), title: 'Read history chapter', category: 'Home Schooling', status: 'In Progress', assignee: 'student2', priority: 'Medium', due: future, desc: 'Chapter 4: Ancient Rome' },
-        { id: generateId(), title: 'Daily 5k run', category: 'Sports Training', status: 'To Do', assignee: 'student1', priority: 'Medium', due: today, desc: 'Keep steady pace, log time' },
-        { id: generateId(), title: 'Stretching routine', category: 'Sports Training', status: 'Done', assignee: 'student2', priority: 'Low', due: today, desc: '15 min post-workout stretch' },
+        { id: generateId(), title: 'Math worksheet', listId: 'math-t1', status: 'To Do', assignee: 'student1', priority: 'High', due: today, desc: 'Complete algebra worksheet p.12', notes: '' },
+        { id: generateId(), title: 'Read history chapter', listId: 'english-t2', status: 'In Progress', assignee: 'student2', priority: 'Medium', due: future, desc: 'Chapter 4: Ancient Rome', notes: '' },
+        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: 'pe-t3', status: 'To Do', assignee: 'student1', priority: 'Medium', due: today, desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
+        { id: generateId(), title: 'Daily 5k run', listId: 'sporting-t3', status: 'To Do', assignee: 'student1', priority: 'Medium', due: today, desc: 'Keep steady pace, log time', notes: '' },
+        { id: generateId(), title: 'Stretching routine', listId: 'sporting-t3-afternoon', status: 'Done', assignee: 'student2', priority: 'Low', due: today, desc: '15 min post-workout stretch', notes: '' }
       ];
     }
+
+    function generateId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+    function loadSpaces() {
+      const raw = localStorage.getItem(SPACE_KEY);
+      spaces = raw ? JSON.parse(raw) : seedSpaces();
+      if (!raw) saveSpaces();
+    }
+
+    function saveSpaces() { localStorage.setItem(SPACE_KEY, JSON.stringify(spaces)); }
 
     function loadTasks() {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -212,29 +330,105 @@
 
     function saveTasks() { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
 
+    function findList(listId) {
+      for (const space of spaces) {
+        for (const folder of space.folders) {
+          for (const list of folder.lists) {
+            if (list.id === listId) return { space, folder, list };
+          }
+        }
+      }
+      return null;
+    }
+
     function setViews() {
       if (currentUser) {
         document.getElementById('login').style.display = 'none';
         document.getElementById('app').classList.add('active');
         document.getElementById('userLabel').textContent = currentUser.name + ' (' + currentUser.role + ')';
         document.getElementById('addTaskBtn').classList.toggle('hidden', currentUser.role !== 'manager');
+        document.getElementById('addFolderBtn').classList.toggle('hidden', currentUser.role !== 'manager');
+        document.getElementById('addListBtn').classList.toggle('hidden', currentUser.role !== 'manager');
       } else {
         document.getElementById('login').style.display = 'flex';
         document.getElementById('app').classList.remove('active');
       }
     }
 
+    function getTaskCount(listId) {
+      return tasks.filter(t => t.listId === listId).length;
+    }
+
+    function renderSidebar() {
+      const tree = document.getElementById('sidebarTree');
+      tree.innerHTML = '';
+      spaces.forEach(space => {
+        const spaceEl = document.createElement('div');
+        spaceEl.className = 'tree-space';
+        spaceEl.innerHTML = '<div class="space-name">' + escapeHtml(space.name) + '</div>';
+        const folderContainer = document.createElement('div');
+        folderContainer.className = 'tree-folders';
+
+        space.folders.forEach(folder => {
+          const isOpen = expandedFolders.has(folder.id);
+          const folderRow = document.createElement('div');
+          folderRow.className = 'folder-row';
+          folderRow.dataset.folder = folder.id;
+          folderRow.innerHTML = '<span class="chevron">' + (isOpen ? '&#9662;' : '&#9656;') + '</span>' +
+            '<span class="folder-icon">&#128193;</span>' +
+            '<span class="folder-name">' + escapeHtml(folder.name) + '</span>';
+          folderRow.addEventListener('click', () => toggleFolder(folder.id));
+          folderContainer.appendChild(folderRow);
+
+          const listContainer = document.createElement('div');
+          listContainer.className = 'tree-lists' + (isOpen ? ' open' : '');
+          folder.lists.forEach(list => {
+            const listRow = document.createElement('div');
+            listRow.className = 'list-row' + (activeListId === list.id ? ' active' : '');
+            listRow.textContent = escapeHtml(list.name);
+            const count = document.createElement('span');
+            count.className = 'count';
+            count.textContent = getTaskCount(list.id);
+            listRow.appendChild(count);
+            listRow.addEventListener('click', () => selectList(list.id));
+            listContainer.appendChild(listRow);
+          });
+          folderContainer.appendChild(listContainer);
+        });
+
+        spaceEl.appendChild(folderContainer);
+        tree.appendChild(spaceEl);
+      });
+    }
+
+    function toggleFolder(folderId) {
+      if (expandedFolders.has(folderId)) expandedFolders.delete(folderId);
+      else expandedFolders.add(folderId);
+      renderSidebar();
+    }
+
+    function selectList(listId) {
+      activeListId = listId;
+      const found = findList(listId);
+      if (found) {
+        document.getElementById('pageTitle').textContent = found.list.name;
+        document.getElementById('pageBreadcrumb').textContent = found.space.name + ' / ' + found.folder.name;
+      }
+      renderSidebar();
+      renderBoard();
+    }
+
     function renderBoard() {
-      document.getElementById('pageTitle').textContent = activeCategory;
       const board = document.getElementById('board');
       board.innerHTML = '';
+      if (!activeListId) return;
       statuses.forEach(status => {
         const col = document.createElement('div');
         col.className = 'column';
         col.innerHTML = '<h3>' + status + '</h3>';
         const list = document.createElement('div');
         list.className = 'tasks';
-        const filtered = tasks.filter(t => t.category === activeCategory && t.status === status);
+        const filtered = tasks.filter(t => t.listId === activeListId && t.status === status);
         if (filtered.length === 0) {
           list.innerHTML = '<div class="empty">No tasks</div>';
         } else {
@@ -247,7 +441,7 @@
               '<div class="task-meta">' +
               '<span>Assignee: ' + (users[task.assignee]?.name || task.assignee) + '</span>' +
               '<span>Due: ' + (task.due || '—') + '</span>' +
-              '<span><span class="badge ' + priorityClass + '">' + task.priority + '</span></span>' +
+              '<span><span class="badge ' + priorityClass + '">' + task.priority + '</span>' + (task.notes ? ' &bull; Notes' : '') + '</span>' +
               '</div>';
             el.addEventListener('click', () => openTask(task.id));
             list.appendChild(el);
@@ -260,10 +454,16 @@
 
     function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-    function selectCategory(cat) {
-      activeCategory = cat;
-      document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.dataset.category === cat));
-      renderBoard();
+    function buildListOptions() {
+      const opts = [];
+      spaces.forEach(space => {
+        space.folders.forEach(folder => {
+          folder.lists.forEach(list => {
+            opts.push({ value: list.id, label: space.name + ' / ' + folder.name + ' / ' + list.name });
+          });
+        });
+      });
+      return opts;
     }
 
     function openTask(id) {
@@ -272,8 +472,9 @@
       const editable = isManager || !task || task.assignee === currentUser.username;
       document.getElementById('modalTitle').textContent = task ? 'Edit Task' : 'New Task';
       document.getElementById('deleteTaskBtn').classList.toggle('hidden', !isManager || !task);
+      document.getElementById('printNotesBtn').classList.toggle('hidden', !task);
 
-      fillSelect('tCategory', categories, task ? task.category : activeCategory);
+      fillSelect('tList', buildListOptions(), task ? task.listId : activeListId);
       fillSelect('tStatus', statuses, task ? task.status : 'To Do');
       fillSelect('tAssignee', Object.entries(users).filter(([k,u]) => u.role === 'student').map(([k,u]) => ({value:k, label:u.name})), task ? task.assignee : 'student1');
 
@@ -281,13 +482,16 @@
       document.getElementById('tPriority').value = task ? task.priority : 'Medium';
       document.getElementById('tDue').value = task ? task.due : '';
       document.getElementById('tDesc').value = task ? task.desc : '';
+      document.getElementById('tNotes').value = task ? task.notes : '';
 
-      ['tTitle','tCategory','tAssignee','tPriority','tDue','tDesc'].forEach(id => {
+      ['tTitle','tList','tAssignee','tPriority','tDue','tDesc'].forEach(id => {
         document.getElementById(id).disabled = !isManager;
       });
       document.getElementById('tStatus').disabled = !editable;
+      document.getElementById('tNotes').disabled = !editable;
       document.getElementById('saveTaskBtn').style.display = editable ? 'inline-block' : 'none';
 
+      document.getElementById('printNotesBtn').onclick = () => { if (task) printTaskNotes(task); };
       document.getElementById('modal').dataset.id = id || '';
       document.getElementById('modal').classList.add('active');
     }
@@ -310,12 +514,13 @@
       const id = document.getElementById('modal').dataset.id;
       const values = {
         title: document.getElementById('tTitle').value.trim(),
-        category: document.getElementById('tCategory').value,
+        listId: document.getElementById('tList').value,
         status: document.getElementById('tStatus').value,
         assignee: document.getElementById('tAssignee').value,
         priority: document.getElementById('tPriority').value,
         due: document.getElementById('tDue').value,
-        desc: document.getElementById('tDesc').value.trim()
+        desc: document.getElementById('tDesc').value.trim(),
+        notes: document.getElementById('tNotes').value.trim()
       };
       if (!values.title) { alert('Title is required'); return; }
 
@@ -326,6 +531,7 @@
             tasks[idx] = { ...tasks[idx], ...values };
           } else {
             tasks[idx].status = values.status;
+            tasks[idx].notes = values.notes;
           }
         }
       } else if (currentUser.role === 'manager') {
@@ -333,6 +539,7 @@
         tasks.push(values);
       }
       saveTasks();
+      renderSidebar();
       renderBoard();
       closeModal();
     }
@@ -342,9 +549,56 @@
       if (id && confirm('Delete this task?')) {
         tasks = tasks.filter(t => t.id !== id);
         saveTasks();
+        renderSidebar();
         renderBoard();
         closeModal();
       }
+    }
+
+    function printTaskNotes(task) {
+      const found = findList(task.listId);
+      const printArea = document.getElementById('printArea');
+      printArea.innerHTML =
+        '<h1>' + escapeHtml(task.title) + '</h1>' +
+        '<div class="meta">' +
+        (found ? escapeHtml(found.space.name + ' / ' + found.folder.name + ' / ' + found.list.name) + ' &bull; ' : '') +
+        'Status: ' + task.status + ' &bull; ' +
+        'Priority: ' + task.priority + ' &bull; ' +
+        'Assignee: ' + (users[task.assignee]?.name || task.assignee) + ' &bull; ' +
+        'Due: ' + (task.due || '—') +
+        '</div>' +
+        '<div class="section"><h4>Description</h4><p>' + (task.desc ? escapeHtml(task.desc) : '—') + '</p></div>' +
+        '<div class="section"><h4>Notes</h4><p>' + (task.notes ? escapeHtml(task.notes) : '—') + '</p></div>';
+      printArea.style.display = 'block';
+      window.print();
+      printArea.style.display = 'none';
+    }
+
+    function promptAddFolder() {
+      const spaceId = prompt('Enter space ID (home-school or sporting):');
+      const space = spaces.find(s => s.id === spaceId);
+      if (!space) { alert('Space not found.'); return; }
+      const name = prompt('Folder name:');
+      if (!name) return;
+      const id = generateId();
+      space.folders.push({ id, name, lists: [] });
+      saveSpaces();
+      expandedFolders.add(id);
+      renderSidebar();
+    }
+
+    function promptAddList() {
+      const spaceId = prompt('Enter space ID (home-school or sporting):');
+      const space = spaces.find(s => s.id === spaceId);
+      if (!space) { alert('Space not found.'); return; }
+      const folderId = prompt('Enter folder ID. Available folders: ' + space.folders.map(f => f.id).join(', '));
+      const folder = space.folders.find(f => f.id === folderId);
+      if (!folder) { alert('Folder not found.'); return; }
+      const name = prompt('List name:');
+      if (!name) return;
+      folder.lists.push({ id: generateId(), name });
+      saveSpaces();
+      renderSidebar();
     }
 
     document.getElementById('loginForm').addEventListener('submit', e => {
@@ -355,9 +609,15 @@
         currentUser = { ...users[u], username: u };
         localStorage.setItem(USER_KEY, currentUser.username);
         document.getElementById('loginError').style.display = 'none';
+        loadSpaces();
         loadTasks();
         setViews();
-        selectCategory(activeCategory);
+        if (!activeListId) {
+          activeListId = 'pe-t3';
+          expandedFolders.add('pe');
+        }
+        renderSidebar();
+        selectList(activeListId);
       } else {
         document.getElementById('loginError').style.display = 'block';
       }
@@ -369,34 +629,32 @@
       setViews();
     });
 
-    document.querySelectorAll('.nav-item').forEach(btn => {
-      btn.addEventListener('click', () => selectCategory(btn.dataset.category));
-    });
-
     document.getElementById('addTaskBtn').addEventListener('click', () => openTask(null));
     document.getElementById('closeModal').addEventListener('click', closeModal);
     document.getElementById('cancelModal').addEventListener('click', closeModal);
     document.getElementById('saveTaskBtn').addEventListener('click', saveTask);
     document.getElementById('deleteTaskBtn').addEventListener('click', deleteTask);
-
-    document.getElementById('resetBtn').addEventListener('click', () => {
-      if (confirm('Reset all tasks to demo data?')) {
-        tasks = seedTasks();
-        saveTasks();
-        renderBoard();
-      }
-    });
+    document.getElementById('addFolderBtn').addEventListener('click', promptAddFolder);
+    document.getElementById('addListBtn').addEventListener('click', promptAddList);
 
     window.addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 
     function init() {
+      loadSpaces();
+      loadTasks();
       const saved = localStorage.getItem(USER_KEY);
       if (saved && users[saved]) {
         currentUser = { ...users[saved], username: saved };
       }
-      loadTasks();
       setViews();
-      if (currentUser) selectCategory(activeCategory);
+      if (currentUser) {
+        if (!activeListId) {
+          activeListId = 'pe-t3';
+          expandedFolders.add('pe');
+        }
+        renderSidebar();
+        selectList(activeListId);
+      }
     }
 
     init();
