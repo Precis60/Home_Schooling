@@ -578,41 +578,27 @@
           folders: [
             {
               id: generateId(), name: 'Mathematics', folders: [], lists: [
-                { id: generateId(), name: 'Term One 2026 Lessons' },
-                { id: generateId(), name: 'Term Two 2026 Lessons' },
                 { id: generateId(), name: 'Term Three 2026 Lessons' }
               ]
             },
             {
               id: generateId(), name: 'Physical Education', folders: [], lists: [
-                { id: generateId(), name: 'Term One 2026 Lessons' },
                 { id: generateId(), name: 'Term Three 2026 Lessons' }
               ]
             },
             {
               id: generateId(), name: 'Science', folders: [], lists: [
-                { id: generateId(), name: 'Term One 2026 Lessons' },
-                { id: generateId(), name: 'Term Two 2026 Lessons' },
                 { id: generateId(), name: 'Term Three 2026 Lessons' }
               ]
             },
             {
-              id: generateId(), name: 'Business & Legal', folders: [], lists: [
-                { id: generateId(), name: 'Term One 2026 Lessons' },
-                { id: generateId(), name: 'Term Two 2026 Lessons' }
-              ]
+              id: generateId(), name: 'Business & Legal', folders: [], lists: []
             },
             {
-              id: generateId(), name: 'Economics & Investment', folders: [], lists: [
-                { id: generateId(), name: 'Term One 2026 Lessons' },
-                { id: generateId(), name: 'Term Two 2026 Lessons' }
-              ]
+              id: generateId(), name: 'Economics & Investment', folders: [], lists: []
             },
             {
-              id: generateId(), name: 'English', folders: [], lists: [
-                { id: generateId(), name: 'Term One 2026 Lessons' },
-                { id: generateId(), name: 'Term Two 2026 Lessons' }
-              ]
+              id: generateId(), name: 'English', folders: [], lists: []
             }
           ]
         },
@@ -637,13 +623,11 @@
       const lucasSpaces = getStudentSpaces('lucas@projects-consultant.com');
       const emilySpaces = getStudentSpaces('emily@projects-consultant.com');
       const lucasMathList = lucasSpaces[0].folders[0].lists[0].id;
-      const lucasPEList = lucasSpaces[0].folders[1].lists[1].id;
+      const lucasPEList = lucasSpaces[0].folders[1].lists[0].id;
       const lucasSportList = lucasSpaces[1].folders[0].lists[0].id;
-      const emilyEnglishList = emilySpaces[0].folders[5].lists[1].id;
       const emilySportList = emilySpaces[1].folders[0].lists[1].id;
       return [
         { id: generateId(), title: 'Math worksheet', listId: lucasMathList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' },
-        { id: generateId(), title: 'Read history chapter', listId: emilyEnglishList, status: 'In Progress', assignee: 'emily@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: future, dueTime: '', desc: 'Chapter 4: Ancient Rome', notes: '' },
         { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: lucasPEList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
         { id: generateId(), title: 'Daily 5k run', listId: lucasSportList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' },
         { id: generateId(), title: 'Stretching routine', listId: emilySportList, status: 'Completed', assignee: 'emily@projects-consultant.com', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' }
@@ -702,6 +686,7 @@
           (folders || []).forEach(f => {
             if (!Array.isArray(f.folders)) f.folders = [];
             if (!Array.isArray(f.lists)) f.lists = [];
+            f.lists = f.lists.filter(l => !l.name.includes('Term One') && !l.name.includes('Term Two'));
             walk(f.folders);
           });
         }
