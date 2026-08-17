@@ -128,12 +128,17 @@
     .calendar.active { display: flex; flex-direction: column; }
     #calendarGrid { flex: 1; min-height: 0; overflow-y: auto; }
     #calendarGrid.month-view { overflow-y: hidden; overflow-x: auto; }
-    .filter-bar { background: var(--card); border-top: 1px solid var(--border); padding: 10px 28px; display: none; gap: 28px; align-items: center; flex-wrap: wrap; font-size: 13px; flex-shrink: 0; max-height: 120px; overflow-y: auto; }
+    .filter-bar { background: var(--card); border-top: 1px solid var(--border); padding: 10px 28px; display: none; gap: 12px; align-items: center; font-size: 13px; flex-shrink: 0; }
     .filter-bar.active { display: flex; }
-    .filter-bar .filter-group { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-    .filter-bar .filter-group strong { font-weight: 600; color: var(--text); margin-right: 4px; }
-    .filter-bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); }
-    .filter-bar input[type="checkbox"] { cursor: pointer; }
+    .filter-dropdown { position: relative; }
+    .filter-dropdown-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; color: var(--text); font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .filter-dropdown-btn:hover { border-color: var(--primary); }
+    .filter-dropdown-btn .chev { font-size: 10px; color: var(--muted); }
+    .filter-dropdown-menu { position: absolute; bottom: 100%; left: 0; margin-bottom: 6px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); padding: 8px; min-width: 180px; max-height: 240px; overflow-y: auto; z-index: 100; display: none; }
+    .filter-dropdown-menu.open { display: block; }
+    .filter-dropdown-menu label { display: flex; align-items: center; gap: 8px; padding: 5px 4px; cursor: pointer; color: var(--text); font-size: 13px; }
+    .filter-dropdown-menu label:hover { background: var(--bg); border-radius: 4px; }
+    .filter-dropdown-menu input[type="checkbox"] { cursor: pointer; }
     .calendar-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
     .calendar-toolbar .group { display: flex; align-items: center; gap: 8px; }
     .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(120px, max-content); gap: 10px; align-content: start; }
@@ -316,8 +321,18 @@
         <div id="calendarGrid"></div>
       </div>
       <div class="filter-bar" id="filterBar">
-        <div class="filter-group" id="studentFilters"></div>
-        <div class="filter-group" id="listFilters"></div>
+        <div class="filter-dropdown" id="spaceDropdown">
+          <button type="button" class="filter-dropdown-btn" id="spaceDropdownBtn">Spaces <span class="chev">&#9656;</span></button>
+          <div class="filter-dropdown-menu" id="spaceDropdownMenu"></div>
+        </div>
+        <div class="filter-dropdown" id="studentDropdown">
+          <button type="button" class="filter-dropdown-btn" id="studentDropdownBtn">Students <span class="chev">&#9656;</span></button>
+          <div class="filter-dropdown-menu" id="studentDropdownMenu"></div>
+        </div>
+        <div class="filter-dropdown" id="categoryDropdown">
+          <button type="button" class="filter-dropdown-btn" id="categoryDropdownBtn">Categories <span class="chev">&#9656;</span></button>
+          <div class="filter-dropdown-menu" id="categoryDropdownMenu"></div>
+        </div>
       </div>
     </main>
   </div>
@@ -699,6 +714,23 @@
       for (const space of spaces) {
         if ((space.lists || []).some(l => l.id === listId)) return null;
         const found = walk(space.folders);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function getListSpaceId(listId) {
+      function walk(folders, spaceId) {
+        for (const folder of (folders || [])) {
+          if ((folder.lists || []).some(l => l.id === listId)) return spaceId;
+          const found = walk(folder.folders, spaceId);
+          if (found) return found;
+        }
+        return null;
+      }
+      for (const space of spaces) {
+        if ((space.lists || []).some(l => l.id === listId)) return space.id;
+        const found = walk(space.folders, space.id);
         if (found) return found;
       }
       return null;
@@ -1439,16 +1471,50 @@
       return visible;
     }
 
-    const filterHidden = { students: new Set(), folders: new Set() };
+    const filterHidden = { students: new Set(), folders: new Set(), spaces: new Set() };
 
     function getFilteredTasks() {
       return tasks.filter(t => {
         if (filterHidden.students.has(t.assignee)) return false;
         const folderId = getListFolderId(t.listId);
         if (folderId && filterHidden.folders.has(folderId)) return false;
+        const spaceId = getListSpaceId(t.listId);
+        if (spaceId && filterHidden.spaces.has(spaceId)) return false;
         return true;
       });
     }
+
+    function buildDropdownMenu(menuId, items, hiddenSet, getKey, getLabel) {
+      const menu = document.getElementById(menuId);
+      menu.innerHTML = '';
+      items.forEach(item => {
+        const key = getKey(item);
+        const label = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !hiddenSet.has(key);
+        cb.addEventListener('change', () => {
+          if (cb.checked) hiddenSet.delete(key); else hiddenSet.add(key);
+          render();
+        });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(getLabel(item)));
+        menu.appendChild(label);
+      });
+    }
+
+    function toggleDropdown(btnId, menuId) {
+      const menu = document.getElementById(menuId);
+      const isOpen = menu.classList.contains('open');
+      document.querySelectorAll('.filter-dropdown-menu').forEach(m => m.classList.remove('open'));
+      if (!isOpen) menu.classList.add('open');
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.filter-dropdown')) {
+        document.querySelectorAll('.filter-dropdown-menu').forEach(m => m.classList.remove('open'));
+      }
+    });
 
     function renderFilterBar() {
       const bar = document.getElementById('filterBar');
@@ -1457,37 +1523,10 @@
         return;
       }
       bar.classList.add('active');
-      const studentGroup = document.getElementById('studentFilters');
-      const listGroup = document.getElementById('listFilters');
-      studentGroup.innerHTML = '<strong>Students:</strong>';
-      Object.entries(userMap).forEach(([email, user]) => {
-        if (user.role !== 'student') return;
-        const label = document.createElement('label');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = !filterHidden.students.has(email);
-        cb.addEventListener('change', () => {
-          if (cb.checked) filterHidden.students.delete(email); else filterHidden.students.add(email);
-          render();
-        });
-        label.appendChild(cb);
-        label.appendChild(document.createTextNode(user.name));
-        studentGroup.appendChild(label);
-      });
-      listGroup.innerHTML = '<strong>Categories:</strong>';
-      getTopLevelFolders().forEach(folder => {
-        const label = document.createElement('label');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = !filterHidden.folders.has(folder.id);
-        cb.addEventListener('change', () => {
-          if (cb.checked) filterHidden.folders.delete(folder.id); else filterHidden.folders.add(folder.id);
-          render();
-        });
-        label.appendChild(cb);
-        label.appendChild(document.createTextNode(folder.name));
-        listGroup.appendChild(label);
-      });
+      const students = Object.entries(userMap).filter(([_, u]) => u.role === 'student').map(([email, u]) => ({ email, name: u.name }));
+      buildDropdownMenu('studentDropdownMenu', students, filterHidden.students, s => s.email, s => s.name);
+      buildDropdownMenu('categoryDropdownMenu', getTopLevelFolders(), filterHidden.folders, f => f.id, f => f.name);
+      buildDropdownMenu('spaceDropdownMenu', spaces, filterHidden.spaces, s => s.id, s => s.name);
     }
 
     function getDisplayDate(task) {
@@ -1725,6 +1764,9 @@
     });
 
     document.getElementById('addTaskBtn').addEventListener('click', () => openTask(null));
+    document.getElementById('spaceDropdownBtn').addEventListener('click', () => toggleDropdown('spaceDropdownBtn', 'spaceDropdownMenu'));
+    document.getElementById('studentDropdownBtn').addEventListener('click', () => toggleDropdown('studentDropdownBtn', 'studentDropdownMenu'));
+    document.getElementById('categoryDropdownBtn').addEventListener('click', () => toggleDropdown('categoryDropdownBtn', 'categoryDropdownMenu'));
     document.getElementById('closeModal').addEventListener('click', closeModal);
     document.getElementById('cancelModal').addEventListener('click', closeModal);
     document.getElementById('saveTaskBtn').addEventListener('click', saveTask);
