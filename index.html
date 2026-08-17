@@ -112,8 +112,6 @@
     .priority-optional { background: #e0e7ff; color: #3730a3; }
     .empty { color: var(--muted-light); font-size: 12.5px; text-align: center; padding: 24px 0; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
 
-    .fab { position: fixed; bottom: 28px; right: 28px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 26px; border: none; box-shadow: var(--shadow-lg); display: flex; align-items: center; justify-content: center; transition: background 0.15s, transform 0.1s; }
-    .fab:hover { background: var(--primary-dark); transform: scale(1.05); }
     .hidden { display: none !important; }
 
     .modal-overlay { position: fixed; inset: 0; background: rgba(17,20,29,0.5); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
@@ -306,6 +304,7 @@
           <span class="date-label" id="calDateLabel"></span>
         </div>
         <div class="meta">
+          <button id="addTaskBtn" class="btn btn-sm hidden" title="New Event">+ New Event</button>
           <span id="userLabel">User</span>
           <button id="logoutBtn" class="btn">Log Out</button>
         </div>
@@ -321,7 +320,6 @@
         <div class="filter-group" id="listFilters"></div>
       </div>
     </main>
-    <button id="addTaskBtn" class="fab hidden" title="Add task">+</button>
   </div>
 
   <div id="modal" class="modal-overlay">
