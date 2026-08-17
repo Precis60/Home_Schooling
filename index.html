@@ -131,6 +131,35 @@
     .pdf-preview .section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; color: #777; }
     .pdf-preview .section p { margin: 0; white-space: pre-wrap; }
 
+    .picker-modal { max-width: 380px; overflow: visible; }
+    .picker-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .picker-title { font-weight: 700; font-size: 15px; }
+    .picker-arrow { background: transparent; border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 32px; color: var(--primary); font-weight: 700; cursor: pointer; }
+    .picker-arrow:hover { background: var(--bg); }
+    .picker-dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: 12px; color: var(--muted); padding: 12px 16px 0; }
+    .picker-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 8px 16px 16px; }
+    .day-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: none; background: transparent; font-size: 13px; color: var(--text); cursor: pointer; padding: 0; }
+    .day-cell:hover { background: var(--bg); }
+    .day-cell.other { color: var(--muted); opacity: 0.5; }
+    .day-cell.today { box-shadow: inset 0 0 0 2px var(--primary); }
+    .day-cell.selected { background: var(--primary); color: #fff; }
+    .picker-footer { display: flex; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--border); }
+    .picker-btn { flex: 1; padding: 10px; border-radius: 8px; font-weight: 600; font-size: 13px; background: transparent; cursor: pointer; }
+    .picker-dashed { border: 1px dashed var(--primary); color: var(--primary); }
+    .picker-dashed:hover { background: rgba(124,58,237,0.06); }
+    .picker-primary { background: var(--primary); color: #fff; border: 1px solid var(--primary); }
+    .picker-primary:hover { background: var(--primary-dark); }
+    .time-picker { text-align: center; }
+    .time-display { font-size: 42px; font-weight: 300; padding: 24px 0 6px; font-variant-numeric: tabular-nums; }
+    .time-sub { font-size: 11px; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 12px; }
+    .time-ampm { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }
+    .ampm-btn { padding: 6px 16px; border: 1px solid var(--border); border-radius: 20px; background: transparent; color: var(--text); cursor: pointer; }
+    .ampm-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .time-dial { width: 260px; height: 260px; margin: 0 auto 16px; position: relative; border-radius: 50%; border: 1px solid var(--border); }
+    .dial-number { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent; font-size: 12px; color: var(--text); cursor: pointer; }
+    .dial-number:hover { background: var(--bg); }
+    .dial-number.selected { background: var(--primary); color: #fff; }
+
     @media (max-width: 900px) {
       .columns { grid-template-columns: 1fr; min-width: auto; }
       .calendar-grid { grid-template-columns: repeat(2, 1fr); }
@@ -255,19 +284,19 @@
         </div>
         <div class="field">
           <label for="tStartDate">Start Date</label>
-          <input id="tStartDate" type="date">
+          <input id="tStartDate" type="text" data-picker="date" placeholder="YYYY-MM-DD" readonly>
         </div>
         <div class="field">
           <label for="tStartTime">Start Time</label>
-          <input id="tStartTime" type="time">
+          <input id="tStartTime" type="text" data-picker="time" placeholder="HH:MM" readonly>
         </div>
         <div class="field">
           <label for="tDueDate">Due Date</label>
-          <input id="tDueDate" type="date">
+          <input id="tDueDate" type="text" data-picker="date" placeholder="YYYY-MM-DD" readonly>
         </div>
         <div class="field">
           <label for="tDueTime">Due Time</label>
-          <input id="tDueTime" type="time">
+          <input id="tDueTime" type="text" data-picker="time" placeholder="HH:MM" readonly>
         </div>
         <div class="field">
           <label for="tDesc">Description</label>
@@ -289,6 +318,42 @@
   </div>
 
   <div id="printArea" class="pdf-preview" style="display:none"></div>
+
+  <div id="datePickerModal" class="modal-overlay">
+    <div class="modal picker-modal">
+      <div class="picker-header">
+        <button type="button" class="picker-arrow" id="dpPrev">&lt;</button>
+        <div id="dpMonthYear" class="picker-title"></div>
+        <button type="button" class="picker-arrow" id="dpNext">&gt;</button>
+      </div>
+      <div class="modal-body" style="padding:0">
+        <div class="picker-dow"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+        <div id="dpDays" class="picker-days"></div>
+      </div>
+      <div class="picker-footer">
+        <button type="button" id="dpClear" class="picker-btn picker-dashed">Clear</button>
+        <button type="button" id="dpCancel" class="picker-btn picker-dashed">Cancel</button>
+        <button type="button" id="dpToday" class="picker-btn picker-primary">Today</button>
+        <button type="button" id="dpDone" class="picker-btn picker-primary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="timePickerModal" class="modal-overlay">
+    <div class="modal picker-modal time-picker">
+      <div class="time-display" id="tpDisplay">12:00 AM</div>
+      <div class="time-sub" id="tpSub">SELECT HOUR</div>
+      <div class="time-ampm">
+        <button type="button" id="tpAM" class="ampm-btn active">AM</button>
+        <button type="button" id="tpPM" class="ampm-btn">PM</button>
+      </div>
+      <div class="time-dial" id="tpDial"></div>
+      <div class="picker-footer">
+        <button type="button" id="tpCancel" class="picker-btn picker-dashed">Cancel</button>
+        <button type="button" id="tpDone" class="picker-btn picker-primary">Done</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const users = {
@@ -1105,7 +1170,177 @@
     document.getElementById('calNext').addEventListener('click', () => navigateCalendar(1));
     document.getElementById('calToday').addEventListener('click', () => { calendarDate = new Date(); renderCalendar(); });
 
-    window.addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+    window.addEventListener('click', e => {
+      if (e.target.id === 'modal') closeModal();
+      if (e.target.id === 'datePickerModal') closeDatePicker();
+      if (e.target.id === 'timePickerModal') closeTimePicker();
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        if (document.getElementById('datePickerModal').classList.contains('active')) { closeDatePicker(); return; }
+        if (document.getElementById('timePickerModal').classList.contains('active')) { closeTimePicker(); return; }
+        if (document.getElementById('modal').classList.contains('active')) closeModal();
+      }
+    });
+
+    // Date & Time Picker state and functions
+    let datePickerInput = null;
+    let datePickerSelected = null;
+    let datePickerView = new Date();
+
+    function openDatePicker(input) {
+      datePickerInput = input;
+      const val = input.value;
+      if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        const [y, m, d] = val.split('-').map(Number);
+        datePickerSelected = new Date(y, m - 1, d);
+        datePickerView = new Date(y, m - 1, d);
+      } else {
+        datePickerSelected = null;
+        datePickerView = new Date();
+      }
+      document.getElementById('datePickerModal').classList.add('active');
+      renderDatePicker();
+    }
+
+    function renderDatePicker() {
+      const year = datePickerView.getFullYear();
+      const month = datePickerView.getMonth();
+      document.getElementById('dpMonthYear').textContent = MONTH_NAMES[month] + ' ' + year;
+      const start = startOfWeek(new Date(year, month, 1));
+      const daysEl = document.getElementById('dpDays');
+      daysEl.innerHTML = '';
+      const today = toISODate(new Date());
+      const selectedStr = datePickerSelected ? toISODate(datePickerSelected) : null;
+      for (let i = 0; i < 42; i++) {
+        const d = addDays(start, i);
+        const dateStr = toISODate(d);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'day-cell' +
+          (d.getMonth() !== month ? ' other' : '') +
+          (dateStr === today ? ' today' : '') +
+          (dateStr === selectedStr ? ' selected' : '');
+        btn.textContent = d.getDate();
+        btn.addEventListener('click', () => {
+          datePickerSelected = d;
+          renderDatePicker();
+        });
+        daysEl.appendChild(btn);
+      }
+    }
+
+    function closeDatePicker() {
+      document.getElementById('datePickerModal').classList.remove('active');
+      datePickerInput = null;
+    }
+
+    let timePickerInput = null;
+    let timePickerHour = 12;
+    let timePickerMinute = 0;
+    let timePickerAmPm = 'AM';
+    let timePickerMode = 'hour';
+
+    function openTimePicker(input) {
+      timePickerInput = input;
+      timePickerMode = 'hour';
+      const val = input.value;
+      if (val && /^\d{1,2}:\d{2}$/.test(val)) {
+        const [h, m] = val.split(':').map(Number);
+        const h24 = h % 24;
+        timePickerMinute = m;
+        timePickerAmPm = h24 < 12 ? 'AM' : 'PM';
+        let h12 = h24 % 12;
+        if (h12 === 0) h12 = 12;
+        timePickerHour = h12;
+      } else {
+        const now = new Date();
+        const h24 = now.getHours();
+        timePickerMinute = now.getMinutes();
+        timePickerAmPm = h24 < 12 ? 'AM' : 'PM';
+        let h12 = h24 % 12;
+        if (h12 === 0) h12 = 12;
+        timePickerHour = h12;
+      }
+      document.getElementById('timePickerModal').classList.add('active');
+      renderTimePicker();
+    }
+
+    function renderTimePicker() {
+      document.getElementById('tpSub').textContent = timePickerMode === 'hour' ? 'SELECT HOUR' : 'SELECT MINUTE';
+      document.getElementById('tpDisplay').textContent =
+        String(timePickerHour).padStart(2, '0') + ':' + String(timePickerMinute).padStart(2, '0') + ' ' + timePickerAmPm;
+      document.getElementById('tpAM').classList.toggle('active', timePickerAmPm === 'AM');
+      document.getElementById('tpPM').classList.toggle('active', timePickerAmPm === 'PM');
+      const dial = document.getElementById('tpDial');
+      dial.innerHTML = '';
+      const count = timePickerMode === 'hour' ? 12 : 60;
+      const radius = 40;
+      for (let i = 0; i < count; i++) {
+        const n = timePickerMode === 'hour' ? (i === 0 ? 12 : i) : i;
+        const angle = (n / count * 360) - 90;
+        const rad = angle * Math.PI / 180;
+        const x = 50 + Math.cos(rad) * radius;
+        const y = 50 + Math.sin(rad) * radius;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const isSelected = timePickerMode === 'hour' ? n === timePickerHour : n === timePickerMinute;
+        btn.className = 'dial-number' + (isSelected ? ' selected' : '');
+        btn.textContent = n;
+        btn.style.left = x + '%';
+        btn.style.top = y + '%';
+        btn.addEventListener('click', () => {
+          if (timePickerMode === 'hour') {
+            timePickerHour = n;
+            timePickerMode = 'minute';
+            renderTimePicker();
+          } else {
+            timePickerMinute = n;
+            renderTimePicker();
+          }
+        });
+        dial.appendChild(btn);
+      }
+    }
+
+    function closeTimePicker() {
+      document.getElementById('timePickerModal').classList.remove('active');
+      timePickerInput = null;
+    }
+
+    document.getElementById('dpPrev').addEventListener('click', () => { datePickerView = addMonths(datePickerView, -1); renderDatePicker(); });
+    document.getElementById('dpNext').addEventListener('click', () => { datePickerView = addMonths(datePickerView, 1); renderDatePicker(); });
+    document.getElementById('dpClear').addEventListener('click', () => { if (datePickerInput) datePickerInput.value = ''; closeDatePicker(); });
+    document.getElementById('dpCancel').addEventListener('click', closeDatePicker);
+    document.getElementById('dpDone').addEventListener('click', () => {
+      if (datePickerInput && datePickerSelected) datePickerInput.value = toISODate(datePickerSelected);
+      closeDatePicker();
+    });
+    document.getElementById('dpToday').addEventListener('click', () => {
+      const now = new Date();
+      datePickerSelected = now;
+      datePickerView = new Date(now.getFullYear(), now.getMonth(), 1);
+      renderDatePicker();
+      if (datePickerInput) datePickerInput.value = toISODate(now);
+      closeDatePicker();
+    });
+    document.getElementById('tpAM').addEventListener('click', () => { timePickerAmPm = 'AM'; renderTimePicker(); });
+    document.getElementById('tpPM').addEventListener('click', () => { timePickerAmPm = 'PM'; renderTimePicker(); });
+    document.getElementById('tpCancel').addEventListener('click', closeTimePicker);
+    document.getElementById('tpDone').addEventListener('click', () => {
+      if (timePickerInput) {
+        let hour24 = timePickerHour;
+        if (timePickerHour === 12) hour24 = timePickerAmPm === 'AM' ? 0 : 12;
+        else hour24 = timePickerAmPm === 'AM' ? timePickerHour : timePickerHour + 12;
+        timePickerInput.value = String(hour24).padStart(2, '0') + ':' + String(timePickerMinute).padStart(2, '0');
+      }
+      closeTimePicker();
+    });
+    document.getElementById('tStartDate').addEventListener('click', () => openDatePicker(document.getElementById('tStartDate')));
+    document.getElementById('tDueDate').addEventListener('click', () => openDatePicker(document.getElementById('tDueDate')));
+    document.getElementById('tStartTime').addEventListener('click', () => openTimePicker(document.getElementById('tStartTime')));
+    document.getElementById('tDueTime').addEventListener('click', () => openTimePicker(document.getElementById('tDueTime')));
 
     function init() {
       loadSpaces();
