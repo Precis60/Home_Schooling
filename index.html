@@ -125,8 +125,9 @@
     .close { background: transparent; border: none; font-size: 22px; line-height: 1; color: var(--muted); width: 32px; height: 32px; border-radius: 8px; transition: background 0.15s; }
     .close:hover { background: var(--bg); color: var(--text); }
 
-    .calendar { flex: 1; padding: 28px; overflow-y: auto; display: none; }
-    .calendar.active { display: block; }
+    .calendar { flex: 1; padding: 28px; overflow: hidden; display: none; }
+    .calendar.active { display: flex; flex-direction: column; }
+    #calendarGrid { flex: 1; min-height: 0; overflow-y: auto; }
     .calendar-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
     .calendar-toolbar .group { display: flex; align-items: center; gap: 8px; }
     .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
@@ -211,8 +212,9 @@
     #tTitle { font-size: 15px; font-weight: 600; }
     .field select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3e%3cpath fill='%236b7280' d='M6 9L1 4h10z'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
     @media (max-width: 540px) { .field-row { grid-template-columns: 1fr; } }
-    .calendar-time-view { background: var(--card); border-radius: var(--radius-md); border: 1px solid var(--border); overflow: hidden; }
-    .calendar-time-view.week-view { overflow-x: auto; }
+    .calendar-time-view { background: var(--card); border-radius: var(--radius-md); border: 1px solid var(--border); display: flex; flex-direction: column; }
+    #calendarGrid.week-view { overflow: auto; }
+    .time-view-header { position: sticky; top: 0; z-index: 10; }
     .time-view-header { display: flex; border-bottom: 1px solid var(--border); background: #fafafa; }
     .time-view-header .time-gutter { width: 60px; flex-shrink: 0; }
     .day-header-cell { flex: 1; text-align: center; padding: 14px 8px; min-width: 80px; }
