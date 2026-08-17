@@ -1396,13 +1396,13 @@
       return arr;
     }
 
-    function loadTasks() {
+    async function loadTasks() {
       const raw = localStorage.getItem(STORAGE_KEY);
       let arr = raw ? JSON.parse(raw) : seedTasks();
       migrateTaskFields(arr);
       tasks = arr;
       saveTasks();
-      syncTasksFromSupabase();
+      await syncTasksFromSupabase();
     }
 
     async function syncTasksFromSupabase() {
@@ -1422,9 +1422,18 @@
             render();
           }
         } else {
+          // No rows from Supabase — keep existing/seed data and push it up
           saveTasks();
+          tasks.forEach(t => syncTaskToSupabase(t));
         }
-      } catch (err) { console.error('Supabase sync tasks failed', err); }
+      } catch (err) {
+        console.error('Supabase sync tasks failed', err);
+        // If Supabase fails, fall back to localStorage/seed data
+        // and try to push seed data to Supabase for manager
+        if (currentUser && currentUser.role === 'manager') {
+          tasks.forEach(t => syncTaskToSupabase(t));
+        }
+      }
     }
 
     function saveTasks() {
@@ -3655,9 +3664,9 @@
       }
       currentUser = { ...data.user, name: userMap[email].name, role: userMap[email].role, email };
       document.getElementById('loginError').style.display = 'none';
-      await loadSpaces();
-      loadTasks();
       setViews();
+      await loadSpaces();
+      await loadTasks();
       renderSidebar();
       switchView('dashboard');
       startReminderChecker();
@@ -4923,7 +4932,7 @@
         supabaseClient.auth.refreshSession().catch(err => console.error('Session refresh failed', err));
         setViews();
         await loadSpaces();
-        loadTasks();
+        await loadTasks();
         renderSidebar();
         switchView('dashboard');
         startReminderChecker();
