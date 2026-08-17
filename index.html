@@ -173,7 +173,7 @@
     .ampm-btn { padding: 6px 18px; border: 1px solid var(--border); border-radius: 20px; background: transparent; color: var(--text); cursor: pointer; font-weight: 600; font-size: 12.5px; transition: background 0.15s, color 0.15s, border-color 0.15s; }
     .ampm-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
     .time-dial { width: 260px; height: 260px; margin: 0 auto 18px; position: relative; border-radius: 50%; border: 1px solid var(--border); background: var(--bg); }
-    .dial-number { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent; font-size: 12.5px; font-weight: 500; color: var(--text); cursor: pointer; transition: background 0.12s, color 0.12s; }
+    .dial-number { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 38px; height: 38px; border-radius: 50%; border: none; background: transparent; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; transition: background 0.12s, color 0.12s; }
     .dial-number:hover { background: #fff; }
     .dial-number.selected { background: var(--primary); color: #fff; }
 
@@ -1447,19 +1447,23 @@
       document.getElementById('tpPM').classList.toggle('active', timePickerAmPm === 'PM');
       const dial = document.getElementById('tpDial');
       dial.innerHTML = '';
-      const count = timePickerMode === 'hour' ? 12 : 60;
+      // Both hour and minute dials show 12 evenly-spaced marks. Minutes snap to
+      // 5-minute increments, which is precise enough for scheduling and keeps
+      // the dial readable (60 crammed numbers is impractical to tap).
       const radius = 40;
-      for (let i = 0; i < count; i++) {
-        const n = timePickerMode === 'hour' ? (i === 0 ? 12 : i) : i;
-        const angle = (n / count * 360) - 90;
+      const step = timePickerMode === 'hour' ? 1 : 5;
+      const nearestStep = Math.round(timePickerMinute / 5) * 5 % 60;
+      for (let i = 0; i < 12; i++) {
+        const n = timePickerMode === 'hour' ? (i === 0 ? 12 : i) : i * step;
+        const angle = (i / 12 * 360) - 90;
         const rad = angle * Math.PI / 180;
         const x = 50 + Math.cos(rad) * radius;
         const y = 50 + Math.sin(rad) * radius;
         const btn = document.createElement('button');
         btn.type = 'button';
-        const isSelected = timePickerMode === 'hour' ? n === timePickerHour : n === timePickerMinute;
+        const isSelected = timePickerMode === 'hour' ? n === timePickerHour : n === nearestStep;
         btn.className = 'dial-number' + (isSelected ? ' selected' : '');
-        btn.textContent = n;
+        btn.textContent = timePickerMode === 'hour' ? n : String(n).padStart(2, '0');
         btn.style.left = x + '%';
         btn.style.top = y + '%';
         btn.addEventListener('click', () => {
