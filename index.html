@@ -351,6 +351,14 @@
             <input id="tTitle" required>
           </div>
           <div class="field">
+            <label for="tSpace">Space</label>
+            <select id="tSpace"></select>
+          </div>
+          <div class="field">
+            <label for="tCategory">Category</label>
+            <select id="tCategory"></select>
+          </div>
+          <div class="field">
             <label for="tList">List</label>
             <select id="tList"></select>
           </div>
@@ -1128,6 +1136,34 @@
       });
     }
 
+    function buildSpaceOptions() {
+      return spaces.map(s => ({ value: s.id, label: s.name }));
+    }
+
+    function buildCategoryOptions(spaceId) {
+      const space = spaces.find(s => s.id === spaceId);
+      if (!space) return [];
+      return (space.folders || []).map(f => ({ value: f.id, label: f.name }));
+    }
+
+    function buildListOptionsForCategory(spaceId, folderId) {
+      const space = spaces.find(s => s.id === spaceId);
+      if (!space) return [];
+      function walk(folders) {
+        for (const folder of (folders || [])) {
+          if (folder.id === folderId) {
+            return (folder.lists || []).map(l => ({ value: l.id, label: l.name }));
+          }
+          const found = walk(folder.folders);
+          if (found) return found;
+        }
+        return null;
+      }
+      const found = walk(space.folders);
+      if (found) return found;
+      return (space.lists || []).map(l => ({ value: l.id, label: l.name }));
+    }
+
     function buildListOptions() {
       const opts = [];
       spaces.forEach(space => {
@@ -1155,10 +1191,32 @@
       document.getElementById('printNotesBtn').classList.toggle('hidden', !task);
 
       const studentOptions = Object.entries(userMap).filter(([email,u]) => u.role === 'student').map(([email,u]) => ({value: email, label: u.name}));
-      fillSelect('tList', buildListOptions(), task ? task.listId : activeListId);
+
+      const currentListId = task ? task.listId : activeListId;
+      const currentSpaceId = getListSpaceId(currentListId) || (spaces[0] && spaces[0].id);
+      const currentFolderId = getListFolderId(currentListId) || null;
+
+      fillSelect('tSpace', buildSpaceOptions(), currentSpaceId);
+      fillSelect('tCategory', buildCategoryOptions(currentSpaceId), currentFolderId);
+      fillSelect('tList', buildListOptionsForCategory(currentSpaceId, currentFolderId), currentListId);
       fillSelect('tStatus', statuses, (task && statuses.includes(task.status)) ? task.status : 'Planned');
       fillSelect('tAssignee', studentOptions, task ? task.assignee : (studentOptions[0] && studentOptions[0].value));
       fillSelect('tPriority', priorities, (task && priorities.includes(task.priority)) ? task.priority : 'Medium');
+
+      const tSpace = document.getElementById('tSpace');
+      const tCategory = document.getElementById('tCategory');
+      const tList = document.getElementById('tList');
+      tSpace.onchange = () => {
+        const sp = tSpace.value;
+        const cats = buildCategoryOptions(sp);
+        fillSelect('tCategory', cats, cats[0] && cats[0].value);
+        const lists = buildListOptionsForCategory(sp, tCategory.value);
+        fillSelect('tList', lists, lists[0] && lists[0].value);
+      };
+      tCategory.onchange = () => {
+        const lists = buildListOptionsForCategory(tSpace.value, tCategory.value);
+        fillSelect('tList', lists, lists[0] && lists[0].value);
+      };
 
       document.getElementById('tTitle').value = task ? task.title : '';
       document.getElementById('tStartDate').value = task ? (task.startDate || '') : '';
@@ -1168,7 +1226,7 @@
       document.getElementById('tDesc').value = task ? task.desc : '';
       document.getElementById('tNotes').value = task ? task.notes : '';
 
-      ['tTitle','tList','tAssignee','tPriority','tStartDate','tStartTime','tDueDate','tDueTime','tDesc'].forEach(id => {
+      ['tTitle','tSpace','tCategory','tList','tAssignee','tPriority','tStartDate','tStartTime','tDueDate','tDueTime','tDesc'].forEach(id => {
         document.getElementById(id).disabled = !isManager;
       });
       document.getElementById('tStatus').disabled = !editable;
