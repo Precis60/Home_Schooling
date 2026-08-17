@@ -913,7 +913,7 @@
           const spaceHeader = document.createElement('div');
           spaceHeader.className = 'space-header';
           spaceHeader.innerHTML = '<div class="space-name">' + escapeHtml(space.name) + '</div>';
-          if (isManager) {
+          if (isManager || email === currentUser.email) {
             const addBtn = document.createElement('button');
             addBtn.type = 'button';
             addBtn.className = 'space-add-btn';
@@ -925,7 +925,7 @@
           spaceEl.appendChild(spaceHeader);
           const folderContainer = document.createElement('div');
           folderContainer.className = 'tree-folders';
-          (space.folders || []).forEach(folder => renderFolder(folder, folderContainer, email));
+          (space.folders || []).forEach(folder => renderFolder(folder, folderContainer, email, isManager || email === currentUser.email));
           spaceEl.appendChild(folderContainer);
           section.appendChild(spaceEl);
         });
@@ -933,8 +933,9 @@
       });
     }
 
-    function renderFolder(folder, parentEl, assigneeEmail) {
+    function renderFolder(folder, parentEl, assigneeEmail, canManage) {
       const isOpen = expandedFolders.has(folder.id);
+      const isManager = currentUser.role === 'manager';
       const folderEl = document.createElement('div');
       folderEl.className = 'tree-folder';
 
@@ -944,13 +945,13 @@
       row.innerHTML = '<span class="chevron">' + (isOpen ? '&#9662;' : '&#9656;') + '</span>' +
         '<span class="folder-icon">&#128193;</span>' +
         '<span class="folder-name">' + escapeHtml(folder.name) + '</span>';
-      if (currentUser.role === 'manager') {
+      if (canManage) {
         const menuBtn = document.createElement('button');
         menuBtn.type = 'button';
         menuBtn.className = 'menu-btn';
         menuBtn.innerHTML = '&#x22EE;';
         menuBtn.title = 'Actions';
-        menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'folder', folder.id); });
+        menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'folder', folder.id, isManager); });
         row.appendChild(menuBtn);
       }
       row.addEventListener('click', e => { if (e.target.closest('.menu-btn, .dropdown-menu')) return; toggleFolder(folder.id); });
@@ -960,7 +961,7 @@
       body.className = 'folder-body' + (isOpen ? ' open' : '');
       const childFolders = document.createElement('div');
       childFolders.className = 'folder-children';
-      (folder.folders || []).forEach(sub => renderFolder(sub, childFolders, assigneeEmail));
+      (folder.folders || []).forEach(sub => renderFolder(sub, childFolders, assigneeEmail, canManage));
       body.appendChild(childFolders);
 
       const listContainer = document.createElement('div');
@@ -970,13 +971,13 @@
         listRow.className = 'list-row' + (activeListId === list.id ? ' active' : '');
         listRow.innerHTML = '<span class="list-name">' + escapeHtml(list.name) + '</span>' +
           '<span class="count">' + getTaskCount(list.id, assigneeEmail) + '</span>';
-        if (currentUser.role === 'manager') {
+        if (canManage) {
           const menuBtn = document.createElement('button');
           menuBtn.type = 'button';
           menuBtn.className = 'menu-btn';
           menuBtn.innerHTML = '&#x22EE;';
           menuBtn.title = 'Actions';
-          menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'list', list.id); });
+          menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'list', list.id, isManager); });
           listRow.appendChild(menuBtn);
         }
         listRow.addEventListener('click', e => { if (e.target.closest('.menu-btn, .dropdown-menu')) return; selectList(list.id); });
@@ -1004,7 +1005,7 @@
       document.querySelectorAll('.menu-btn.active').forEach(b => b.classList.remove('active'));
     }
 
-    function toggleDropdown(btn, type, id) {
+    function toggleDropdown(btn, type, id, isManager) {
       if (btn.classList.contains('active')) {
         closeAllDropdowns();
         return;
@@ -1018,10 +1019,10 @@
         { action: 'add-subfolder', label: 'Add Subfolder' },
         { action: 'add-list', label: 'Add List' },
         { action: 'rename-folder', label: 'Rename Folder' },
-        { action: 'delete-folder', label: 'Delete Folder', danger: true }
+        ...(isManager ? [{ action: 'delete-folder', label: 'Delete Folder', danger: true }] : [])
       ] : [
         { action: 'rename-list', label: 'Rename List' },
-        { action: 'delete-list', label: 'Delete List', danger: true }
+        ...(isManager ? [{ action: 'delete-list', label: 'Delete List', danger: true }] : [])
       ];
       items.forEach(item => {
         const el = document.createElement('button');
@@ -1454,7 +1455,25 @@
       return null;
     }
 
+    function canManageSpace(spaceId, studentEmail) {
+      if (currentUser.role === 'manager') return true;
+      return studentEmail === currentUser.email && getStudentSpaces(currentUser.email).some(s => s.id === spaceId);
+    }
+
+    function canManageFolder(folderId) {
+      if (currentUser.role === 'manager') return true;
+      const found = findFolder(folderId);
+      return !!(found && getStudentSpaces(currentUser.email).some(s => s.id === found.space.id));
+    }
+
+    function canManageList(listId) {
+      if (currentUser.role === 'manager') return true;
+      const found = findList(listId);
+      return !!(found && getStudentSpaces(currentUser.email).some(s => s.id === found.space.id));
+    }
+
     function promptAddFolderToSpace(spaceId, studentEmail) {
+      if (!canManageSpace(spaceId, studentEmail)) { alert('You can only manage your own categories.'); return; }
       const studentSpaces = getStudentSpaces(studentEmail);
       const space = studentSpaces.find(s => s.id === spaceId);
       if (!space) { alert('Space not found.'); return; }
@@ -1487,6 +1506,7 @@
     }
 
     function promptAddSubfolder(parentFolderId) {
+      if (!canManageFolder(parentFolderId)) { alert('You can only manage your own categories.'); return; }
       const name = prompt('Subfolder name:');
       if (!name) return;
       const found = findFolder(parentFolderId);
@@ -1516,6 +1536,7 @@
     }
 
     function promptAddListToFolder(folderId) {
+      if (!canManageFolder(folderId)) { alert('You can only manage your own categories.'); return; }
       const found = findFolder(folderId);
       if (!found) { alert('Folder not found.'); return; }
       const name = prompt('List name:');
@@ -1527,6 +1548,7 @@
     }
 
     function renameFolder(folderId) {
+      if (!canManageFolder(folderId)) { alert('You can only manage your own categories.'); return; }
       const found = findFolder(folderId);
       if (!found) return;
       const name = prompt('Rename folder:', found.folder.name);
@@ -1534,6 +1556,7 @@
     }
 
     function renameList(listId) {
+      if (!canManageList(listId)) { alert('You can only manage your own categories.'); return; }
       const found = findList(listId);
       if (!found) return;
       const name = prompt('Rename list:', found.list.name);
@@ -1541,6 +1564,7 @@
     }
 
     function deleteFolder(folderId) {
+      if (currentUser.role !== 'manager') { alert('Only the manager can delete categories.'); return; }
       const found = findFolder(folderId);
       if (!found) return;
       if (!confirm('Delete folder "' + found.folder.name + '" and all its lists?')) return;
@@ -1566,6 +1590,7 @@
     }
 
     function deleteList(listId) {
+      if (currentUser.role !== 'manager') { alert('Only the manager can delete categories.'); return; }
       const found = findList(listId);
       if (!found) return;
       if (!confirm('Delete list "' + found.list.name + '"?')) return;
