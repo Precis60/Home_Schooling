@@ -69,8 +69,16 @@
     .header h2 { margin: 0; font-size: 18px; }
     .breadcrumb { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .header .meta { display: flex; align-items: center; gap: 12px; }
-    .board { flex: 1; padding: 24px; overflow-x: auto; }
-    .columns { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 20px; min-width: 860px; }
+    .view-switcher { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .view-switcher button { padding: 6px 10px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-size: 12px; color: var(--text); }
+    .view-switcher button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .view-switcher button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .view-sep { color: var(--border); font-size: 12px; }
+    .calendar-nav { display: none; align-items: center; gap: 8px; }
+    .date-label { font-size: 14px; font-weight: 600; min-width: 120px; text-align: center; }
+
+    .board { flex: 1; padding: 24px; overflow-x: auto; display: block; }
+    .columns { display: grid; grid-template-columns: repeat(5, minmax(240px, 1fr)); gap: 20px; min-width: 1200px; }
     .column { background: var(--bg); border-radius: 12px; padding: 16px; border: 1px solid var(--border); }
     .column h3 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
     .tasks { display: flex; flex-direction: column; gap: 12px; }
@@ -82,6 +90,7 @@
     .priority-high { background: #fee2e2; color: #991b1b; }
     .priority-medium { background: #fef3c7; color: #92400e; }
     .priority-low { background: #d1fae5; color: #065f46; }
+    .priority-optional { background: #e0e7ff; color: #3730a3; }
     .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
 
     .fab { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 28px; border: none; box-shadow: var(--shadow); display: flex; align-items: center; justify-content: center; }
@@ -97,12 +106,38 @@
     .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
     .close { background: transparent; border: none; font-size: 24px; line-height: 1; color: var(--muted); }
 
+    .calendar { flex: 1; padding: 24px; overflow-y: auto; display: none; }
+    .calendar.active { display: block; }
+    .calendar-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .calendar-toolbar .group { display: flex; align-items: center; gap: 8px; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .calendar-day { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px; min-height: 120px; }
+    .calendar-day .day-label { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    .calendar-day .day-tasks { display: flex; flex-direction: column; gap: 6px; }
+    .calendar-task { padding: 6px 8px; border-radius: 6px; background: var(--bg); font-size: 12px; cursor: pointer; border-left: 3px solid var(--primary); }
+    .calendar-task:hover { background: var(--todo); }
+    .calendar-task .time { color: var(--muted); font-size: 11px; }
+    .calendar-other-month { opacity: 0.6; background: #fafafa; }
+    .calendar-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .calendar-day-view { max-width: 720px; }
+    .calendar-day-view .day-header { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+    .calendar-day-view .day-task { padding: 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: var(--card); cursor: pointer; }
+    .calendar-day-view .day-task:hover { background: var(--bg); }
+
     .pdf-preview { padding: 40px; line-height: 1.6; }
     .pdf-preview h1 { font-size: 22px; margin-bottom: 8px; }
     .pdf-preview .meta { color: #555; font-size: 13px; margin-bottom: 24px; }
     .pdf-preview .section { margin-bottom: 20px; }
     .pdf-preview .section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; color: #777; }
     .pdf-preview .section p { margin: 0; white-space: pre-wrap; }
+
+    @media (max-width: 900px) {
+      .columns { grid-template-columns: 1fr; min-width: auto; }
+      .calendar-grid { grid-template-columns: repeat(2, 1fr); }
+      .calendar-week { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .calendar-nav { margin-top: 8px; }
+    }
 
     @media print {
       body * { visibility: hidden; }
@@ -153,14 +188,31 @@
         <div>
           <h2 id="pageTitle">Home School</h2>
           <div class="breadcrumb" id="pageBreadcrumb">Mathematics / Term One 2026 Lessons</div>
+          <div class="view-switcher" id="viewSwitcher">
+            <button type="button" id="viewBoard" class="active">Board</button>
+            <button type="button" id="viewCalendar">Calendar</button>
+            <span class="view-sep">|</span>
+            <button type="button" id="calDay" disabled>Day</button>
+            <button type="button" id="calWeek" disabled>Week</button>
+            <button type="button" id="calMonth" disabled>Month</button>
+          </div>
+        </div>
+        <div class="calendar-nav" id="calendarNav">
+          <button type="button" id="calPrev" class="btn btn-sm btn-ghost">&lt;</button>
+          <button type="button" id="calToday" class="btn btn-sm">Today</button>
+          <button type="button" id="calNext" class="btn btn-sm btn-ghost">&gt;</button>
+          <span class="date-label" id="calDateLabel"></span>
         </div>
         <div class="meta">
           <span id="userLabel">User</span>
           <button id="logoutBtn" class="btn">Log Out</button>
         </div>
       </header>
-      <div class="board">
-        <div class="columns" id="board"></div>
+      <div class="board" id="board">
+        <div class="columns" id="boardColumns"></div>
+      </div>
+      <div class="calendar" id="calendarView">
+        <div id="calendarGrid"></div>
       </div>
     </main>
     <button id="addTaskBtn" class="fab hidden" title="Add task">+</button>
@@ -191,15 +243,23 @@
         </div>
         <div class="field">
           <label for="tPriority">Priority</label>
-          <select id="tPriority">
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-          </select>
+          <select id="tPriority"></select>
         </div>
         <div class="field">
-          <label for="tDue">Due Date</label>
-          <input id="tDue" type="date">
+          <label for="tStartDate">Start Date</label>
+          <input id="tStartDate" type="date">
+        </div>
+        <div class="field">
+          <label for="tStartTime">Start Time</label>
+          <input id="tStartTime" type="time">
+        </div>
+        <div class="field">
+          <label for="tDueDate">Due Date</label>
+          <input id="tDueDate" type="date">
+        </div>
+        <div class="field">
+          <label for="tDueTime">Due Time</label>
+          <input id="tDueTime" type="time">
         </div>
         <div class="field">
           <label for="tDesc">Description</label>
@@ -228,15 +288,21 @@
       student1: { name: 'Lucas Anderson', password: 'student1', role: 'student' },
       student2: { name: 'Emily Anderson', password: 'student2', role: 'student' }
     };
-    const statuses = ['To Do', 'In Progress', 'Done'];
+    const statuses = ['Planned', 'Delayed', 'In Progress', 'Cancelled', 'Completed'];
+    const priorities = ['Low', 'Medium', 'High', 'Optional'];
     const STORAGE_KEY = 'hst_tasks';
     const SPACE_KEY = 'hst_spaces';
     const USER_KEY = 'hst_user';
+    const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
     let currentUser = null;
     let activeListId = null;
     let tasks = [];
     let spaces = [];
+    let currentView = 'board';
+    let calendarMode = 'month';
+    let calendarDate = new Date();
     const expandedFolders = new Set();
 
     function seedSpaces() {
@@ -304,11 +370,11 @@
       const today = new Date().toISOString().split('T')[0];
       const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       return [
-        { id: generateId(), title: 'Math worksheet', listId: 'math-t1', status: 'To Do', assignee: 'student1', priority: 'High', due: today, desc: 'Complete algebra worksheet p.12', notes: '' },
-        { id: generateId(), title: 'Read history chapter', listId: 'english-t2', status: 'In Progress', assignee: 'student2', priority: 'Medium', due: future, desc: 'Chapter 4: Ancient Rome', notes: '' },
-        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: 'pe-t3', status: 'To Do', assignee: 'student1', priority: 'Medium', due: today, desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
-        { id: generateId(), title: 'Daily 5k run', listId: 'sporting-t3', status: 'To Do', assignee: 'student1', priority: 'Medium', due: today, desc: 'Keep steady pace, log time', notes: '' },
-        { id: generateId(), title: 'Stretching routine', listId: 'sporting-t3-afternoon', status: 'Done', assignee: 'student2', priority: 'Low', due: today, desc: '15 min post-workout stretch', notes: '' }
+        { id: generateId(), title: 'Math worksheet', listId: 'math-t1', status: 'Planned', assignee: 'student1', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' },
+        { id: generateId(), title: 'Read history chapter', listId: 'english-t2', status: 'In Progress', assignee: 'student2', priority: 'Medium', startDate: today, startTime: '', dueDate: future, dueTime: '', desc: 'Chapter 4: Ancient Rome', notes: '' },
+        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: 'pe-t3', status: 'Planned', assignee: 'student1', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
+        { id: generateId(), title: 'Daily 5k run', listId: 'sporting-t3', status: 'Planned', assignee: 'student1', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' },
+        { id: generateId(), title: 'Stretching routine', listId: 'sporting-t3-afternoon', status: 'Completed', assignee: 'student2', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' }
       ];
     }
 
@@ -324,8 +390,20 @@
 
     function loadTasks() {
       const raw = localStorage.getItem(STORAGE_KEY);
-      tasks = raw ? JSON.parse(raw) : seedTasks();
-      if (!raw) saveTasks();
+      let arr = raw ? JSON.parse(raw) : seedTasks();
+      arr.forEach(t => {
+        if (t.due && !t.dueDate) { t.dueDate = t.due; t.dueTime = ''; }
+        if (t.due !== undefined) delete t.due;
+        if (!t.startDate && t.dueDate) t.startDate = t.dueDate;
+        if (t.startTime === undefined) t.startTime = '';
+        if (t.dueTime === undefined) t.dueTime = '';
+        if (!t.status) t.status = 'Planned';
+        if (!t.priority) t.priority = 'Medium';
+        if (t.desc === undefined) t.desc = '';
+        if (t.notes === undefined) t.notes = '';
+      });
+      tasks = arr;
+      saveTasks();
     }
 
     function saveTasks() { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
@@ -414,12 +492,35 @@
         document.getElementById('pageTitle').textContent = found.list.name;
         document.getElementById('pageBreadcrumb').textContent = found.space.name + ' / ' + found.folder.name;
       }
-      renderSidebar();
-      renderBoard();
+      switchView('board');
+    }
+
+    function toISODate(d) {
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function addDays(d, days) { const r = new Date(d); r.setDate(r.getDate() + days); return r; }
+    function addMonths(d, m) { const r = new Date(d); r.setMonth(r.getMonth() + m); return r; }
+    function startOfWeek(d) { const r = new Date(d.getFullYear(), d.getMonth(), d.getDate()); r.setDate(r.getDate() - r.getDay()); return r; }
+
+    function formatDateTime(date, time) {
+      if (!date) return '—';
+      return time ? date + ' at ' + time : date;
+    }
+
+    function escapeHtml(s) {
+      return s.split('').map(c => {
+        if (c === '&') return '&amp;';
+        if (c === '<') return '&lt;';
+        if (c === '>') return '&gt;';
+        if (c === '"') return '&quot;';
+        if (c === "'") return '&#39;';
+        return c;
+      }).join('');
     }
 
     function renderBoard() {
-      const board = document.getElementById('board');
+      const board = document.getElementById('boardColumns');
       board.innerHTML = '';
       if (!activeListId) return;
       statuses.forEach(status => {
@@ -440,7 +541,7 @@
             el.innerHTML = '<div class="task-title">' + escapeHtml(task.title) + '</div>' +
               '<div class="task-meta">' +
               '<span>Assignee: ' + (users[task.assignee]?.name || task.assignee) + '</span>' +
-              '<span>Due: ' + (task.due || '—') + '</span>' +
+              '<span>Due: ' + formatDateTime(task.dueDate, task.dueTime) + '</span>' +
               '<span><span class="badge ' + priorityClass + '">' + task.priority + '</span>' + (task.notes ? ' &bull; Notes' : '') + '</span>' +
               '</div>';
             el.addEventListener('click', () => openTask(task.id));
@@ -451,8 +552,6 @@
         board.appendChild(col);
       });
     }
-
-    function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
     function buildListOptions() {
       const opts = [];
@@ -475,16 +574,19 @@
       document.getElementById('printNotesBtn').classList.toggle('hidden', !task);
 
       fillSelect('tList', buildListOptions(), task ? task.listId : activeListId);
-      fillSelect('tStatus', statuses, task ? task.status : 'To Do');
+      fillSelect('tStatus', statuses, (task && statuses.includes(task.status)) ? task.status : 'Planned');
       fillSelect('tAssignee', Object.entries(users).filter(([k,u]) => u.role === 'student').map(([k,u]) => ({value:k, label:u.name})), task ? task.assignee : 'student1');
+      fillSelect('tPriority', priorities, (task && priorities.includes(task.priority)) ? task.priority : 'Medium');
 
       document.getElementById('tTitle').value = task ? task.title : '';
-      document.getElementById('tPriority').value = task ? task.priority : 'Medium';
-      document.getElementById('tDue').value = task ? task.due : '';
+      document.getElementById('tStartDate').value = task ? (task.startDate || '') : '';
+      document.getElementById('tStartTime').value = task ? (task.startTime || '') : '';
+      document.getElementById('tDueDate').value = task ? (task.dueDate || '') : '';
+      document.getElementById('tDueTime').value = task ? (task.dueTime || '') : '';
       document.getElementById('tDesc').value = task ? task.desc : '';
       document.getElementById('tNotes').value = task ? task.notes : '';
 
-      ['tTitle','tList','tAssignee','tPriority','tDue','tDesc'].forEach(id => {
+      ['tTitle','tList','tAssignee','tPriority','tStartDate','tStartTime','tDueDate','tDueTime','tDesc'].forEach(id => {
         document.getElementById(id).disabled = !isManager;
       });
       document.getElementById('tStatus').disabled = !editable;
@@ -518,7 +620,10 @@
         status: document.getElementById('tStatus').value,
         assignee: document.getElementById('tAssignee').value,
         priority: document.getElementById('tPriority').value,
-        due: document.getElementById('tDue').value,
+        startDate: document.getElementById('tStartDate').value,
+        startTime: document.getElementById('tStartTime').value,
+        dueDate: document.getElementById('tDueDate').value,
+        dueTime: document.getElementById('tDueTime').value,
         desc: document.getElementById('tDesc').value.trim(),
         notes: document.getElementById('tNotes').value.trim()
       };
@@ -528,7 +633,8 @@
         const idx = tasks.findIndex(t => t.id === id);
         if (idx !== -1) {
           if (currentUser.role === 'manager') {
-            tasks[idx] = { ...tasks[idx], ...values };
+            values.id = id;
+            tasks[idx] = values;
           } else {
             tasks[idx].status = values.status;
             tasks[idx].notes = values.notes;
@@ -540,7 +646,7 @@
       }
       saveTasks();
       renderSidebar();
-      renderBoard();
+      render();
       closeModal();
     }
 
@@ -550,7 +656,7 @@
         tasks = tasks.filter(t => t.id !== id);
         saveTasks();
         renderSidebar();
-        renderBoard();
+        render();
         closeModal();
       }
     }
@@ -562,10 +668,11 @@
         '<h1>' + escapeHtml(task.title) + '</h1>' +
         '<div class="meta">' +
         (found ? escapeHtml(found.space.name + ' / ' + found.folder.name + ' / ' + found.list.name) + ' &bull; ' : '') +
-        'Status: ' + task.status + ' &bull; ' +
-        'Priority: ' + task.priority + ' &bull; ' +
-        'Assignee: ' + (users[task.assignee]?.name || task.assignee) + ' &bull; ' +
-        'Due: ' + (task.due || '—') +
+        'Status: ' + escapeHtml(task.status) + ' &bull; ' +
+        'Priority: ' + escapeHtml(task.priority) + ' &bull; ' +
+        'Assignee: ' + (users[task.assignee]?.name || task.assignee) + '<br>' +
+        'Start: ' + formatDateTime(task.startDate, task.startTime) + '<br>' +
+        'Due: ' + formatDateTime(task.dueDate, task.dueTime) +
         '</div>' +
         '<div class="section"><h4>Description</h4><p>' + (task.desc ? escapeHtml(task.desc) : '—') + '</p></div>' +
         '<div class="section"><h4>Notes</h4><p>' + (task.notes ? escapeHtml(task.notes) : '—') + '</p></div>';
@@ -599,6 +706,176 @@
       folder.lists.push({ id: generateId(), name });
       saveSpaces();
       renderSidebar();
+    }
+
+    function switchView(view) {
+      currentView = view;
+      document.getElementById('viewBoard').classList.toggle('active', view === 'board');
+      document.getElementById('viewCalendar').classList.toggle('active', view === 'calendar');
+      ['calDay','calWeek','calMonth'].forEach(id => {
+        const el = document.getElementById(id);
+        el.disabled = view !== 'calendar';
+        el.classList.remove('active');
+      });
+      if (view === 'calendar') {
+        document.getElementById('calendarNav').style.display = 'flex';
+        document.getElementById('board').style.display = 'none';
+        document.getElementById('calendarView').classList.add('active');
+        setCalendarMode(calendarMode);
+      } else {
+        document.getElementById('calendarNav').style.display = 'none';
+        document.getElementById('board').style.display = 'block';
+        document.getElementById('calendarView').classList.remove('active');
+        renderSidebar();
+        renderBoard();
+      }
+    }
+
+    function setCalendarMode(mode) {
+      calendarMode = mode;
+      ['calDay','calWeek','calMonth'].forEach(id => {
+        document.getElementById(id).classList.toggle('active', (id === 'cal' + (mode.charAt(0).toUpperCase() + mode.slice(1))));
+      });
+      renderCalendar();
+    }
+
+    function render() {
+      if (currentView === 'board') renderBoard();
+      else renderCalendar();
+    }
+
+    function getVisibleCalendarTasks() {
+      return tasks.filter(t => currentUser.role === 'manager' || t.assignee === currentUser.username);
+    }
+
+    function getDisplayDate(task) {
+      return task.dueDate || task.startDate;
+    }
+
+    function getDisplayTime(task, dateStr) {
+      if (task.dueDate === dateStr) return task.dueTime || task.startTime || '';
+      return task.startTime || task.dueTime || '';
+    }
+
+    function getDayTasks(dateStr, visibleTasks) {
+      const list = [];
+      visibleTasks.forEach(t => {
+        const d = getDisplayDate(t);
+        if (d === dateStr) {
+          list.push({ task: t, time: getDisplayTime(t, dateStr) });
+        }
+      });
+      list.sort((a, b) => {
+        if (a.time && b.time) return a.time.localeCompare(b.time);
+        if (a.time) return -1;
+        if (b.time) return 1;
+        return a.task.title.localeCompare(b.task.title);
+      });
+      return list.map(x => x.task);
+    }
+
+    function createCalendarTask(task, dateStr) {
+      const time = getDisplayTime(task, dateStr);
+      const el = document.createElement('div');
+      el.className = 'calendar-task';
+      el.innerHTML = '<div>' + escapeHtml(task.title) + '</div>' +
+        (time ? '<div class="time">' + time + '</div>' : '') +
+        '<div><span class="badge priority-' + task.priority.toLowerCase() + '">' + task.priority + '</span></div>';
+      el.addEventListener('click', () => openTask(task.id));
+      return el;
+    }
+
+    function formatShortDate(d) {
+      return d.getDate() + ' ' + MONTH_NAMES[d.getMonth()] + ' ' + d.getFullYear();
+    }
+
+    function renderCalendar() {
+      const grid = document.getElementById('calendarGrid');
+      grid.innerHTML = '';
+      document.getElementById('pageTitle').textContent = 'Calendar';
+      document.getElementById('pageBreadcrumb').textContent = 'Schedule';
+
+      const visibleTasks = getVisibleCalendarTasks();
+
+      if (calendarMode === 'month') {
+        const startOfMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
+        const gridStart = startOfWeek(startOfMonth);
+        grid.className = 'calendar-grid';
+        for (let i = 0; i < 42; i++) {
+          const d = addDays(gridStart, i);
+          const dateStr = toISODate(d);
+          const isCurrentMonth = d.getMonth() === calendarDate.getMonth();
+          const cell = document.createElement('div');
+          cell.className = 'calendar-day' + (isCurrentMonth ? '' : ' calendar-other-month');
+          cell.innerHTML = '<div class="day-label">' + DAY_NAMES[d.getDay()] + ' ' + d.getDate() + '</div>';
+          const taskList = document.createElement('div');
+          taskList.className = 'day-tasks';
+          const dayTasks = getDayTasks(dateStr, visibleTasks);
+          if (dayTasks.length === 0) {
+            taskList.innerHTML = '<span style="color:#9ca3af;font-size:11px">No tasks</span>';
+          } else {
+            dayTasks.forEach(task => taskList.appendChild(createCalendarTask(task, dateStr)));
+          }
+          cell.appendChild(taskList);
+          grid.appendChild(cell);
+        }
+        document.getElementById('calDateLabel').textContent = MONTH_NAMES[calendarDate.getMonth()] + ' ' + calendarDate.getFullYear();
+      } else if (calendarMode === 'week') {
+        const start = startOfWeek(calendarDate);
+        grid.className = 'calendar-week';
+        for (let i = 0; i < 7; i++) {
+          const d = addDays(start, i);
+          const dateStr = toISODate(d);
+          const cell = document.createElement('div');
+          cell.className = 'calendar-day';
+          cell.innerHTML = '<div class="day-label">' + DAY_NAMES[d.getDay()] + ' ' + d.getDate() + '</div>';
+          const taskList = document.createElement('div');
+          taskList.className = 'day-tasks';
+          const dayTasks = getDayTasks(dateStr, visibleTasks);
+          if (dayTasks.length === 0) {
+            taskList.innerHTML = '<span style="color:#9ca3af;font-size:11px">No tasks</span>';
+          } else {
+            dayTasks.forEach(task => taskList.appendChild(createCalendarTask(task, dateStr)));
+          }
+          cell.appendChild(taskList);
+          grid.appendChild(cell);
+        }
+        const end = addDays(start, 6);
+        document.getElementById('calDateLabel').textContent = formatShortDate(start) + ' – ' + formatShortDate(end);
+      } else if (calendarMode === 'day') {
+        const dateStr = toISODate(calendarDate);
+        grid.className = 'calendar-day-view';
+        const header = document.createElement('div');
+        header.className = 'day-header';
+        header.textContent = DAY_NAMES[calendarDate.getDay()] + ', ' + formatShortDate(calendarDate);
+        grid.appendChild(header);
+        const dayTasks = getDayTasks(dateStr, visibleTasks);
+        if (dayTasks.length === 0) {
+          const empty = document.createElement('p');
+          empty.className = 'empty';
+          empty.textContent = 'No tasks for this day.';
+          grid.appendChild(empty);
+        } else {
+          dayTasks.forEach(task => {
+            const time = getDisplayTime(task, dateStr);
+            const el = document.createElement('div');
+            el.className = 'day-task';
+            el.innerHTML = '<strong>' + escapeHtml(task.title) + '</strong>' +
+              (time ? '<br><span style="color:var(--muted);font-size:12px">' + time + '</span>' : '') +
+              '<br><span class="badge priority-' + task.priority.toLowerCase() + '">' + task.priority + '</span>';
+            el.addEventListener('click', () => openTask(task.id));
+            grid.appendChild(el);
+          });
+        }
+        document.getElementById('calDateLabel').textContent = formatShortDate(calendarDate);
+      }
+    }
+
+    function navigateCalendar(dir) {
+      if (calendarMode === 'day') calendarDate = addDays(calendarDate, dir);
+      else if (calendarMode === 'week') calendarDate = addDays(calendarDate, dir * 7);
+      else if (calendarMode === 'month') calendarDate = addMonths(calendarDate, dir);
+      renderCalendar();
     }
 
     document.getElementById('loginForm').addEventListener('submit', e => {
@@ -636,6 +913,15 @@
     document.getElementById('deleteTaskBtn').addEventListener('click', deleteTask);
     document.getElementById('addFolderBtn').addEventListener('click', promptAddFolder);
     document.getElementById('addListBtn').addEventListener('click', promptAddList);
+
+    document.getElementById('viewBoard').addEventListener('click', () => switchView('board'));
+    document.getElementById('viewCalendar').addEventListener('click', () => switchView('calendar'));
+    document.getElementById('calDay').addEventListener('click', () => setCalendarMode('day'));
+    document.getElementById('calWeek').addEventListener('click', () => setCalendarMode('week'));
+    document.getElementById('calMonth').addEventListener('click', () => setCalendarMode('month'));
+    document.getElementById('calPrev').addEventListener('click', () => navigateCalendar(-1));
+    document.getElementById('calNext').addEventListener('click', () => navigateCalendar(1));
+    document.getElementById('calToday').addEventListener('click', () => { calendarDate = new Date(); renderCalendar(); });
 
     window.addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 
