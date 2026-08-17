@@ -128,10 +128,15 @@
 
     .calendar { flex: 1; padding: 28px; overflow: hidden; display: none; }
     .calendar.active { display: flex; flex-direction: column; }
-    #calendarGrid { flex: 1; min-height: 0; overflow-y: auto; }
+    .filter-bar { background: var(--card); border-top: 1px solid var(--border); padding: 12px 28px; display: none; gap: 28px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+    .filter-bar.active { display: flex; }
+    .filter-bar .filter-group { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .filter-bar .filter-group strong { font-weight: 600; color: var(--text); margin-right: 4px; }
+    .filter-bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); }
+    .filter-bar input[type="checkbox"] { cursor: pointer; }
     .calendar-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
     .calendar-toolbar .group { display: flex; align-items: center; gap: 8px; }
-    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-content: start; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(120px, max-content); gap: 10px; align-content: start; }
     .calendar-day { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; min-height: 120px; transition: box-shadow 0.15s; }
     .calendar-day .day-label { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
     .calendar-day .day-tasks { display: flex; flex-direction: column; gap: 6px; }
@@ -306,6 +311,10 @@
       </div>
       <div class="calendar" id="calendarView">
         <div id="calendarGrid"></div>
+      </div>
+      <div class="filter-bar" id="filterBar">
+        <div class="filter-group" id="studentFilters"></div>
+        <div class="filter-group" id="listFilters"></div>
       </div>
     </main>
     <button id="addTaskBtn" class="fab hidden" title="Add task">+</button>
@@ -1024,7 +1033,7 @@
         col.innerHTML = '<h3>' + status + '</h3>';
         const list = document.createElement('div');
         list.className = 'tasks';
-        const filtered = tasks.filter(t => t.listId === activeListId && t.status === status);
+        const filtered = getFilteredTasks().filter(t => t.listId === activeListId && t.status === status);
         if (filtered.length === 0) {
           list.innerHTML = '<div class="empty">No tasks</div>';
         } else {
@@ -1384,10 +1393,59 @@
     function render() {
       if (currentView === 'board') renderBoard();
       else renderCalendar();
+      renderFilterBar();
     }
 
     function getVisibleCalendarTasks() {
-      return tasks.filter(t => currentUser.role === 'manager' || t.assignee === currentUser.email);
+      let visible = getFilteredTasks();
+      if (currentUser.role !== 'manager') visible = visible.filter(t => t.assignee === currentUser.email);
+      return visible;
+    }
+
+    const filterHidden = { students: new Set(), lists: new Set() };
+
+    function getFilteredTasks() {
+      return tasks.filter(t => !filterHidden.students.has(t.assignee) && !filterHidden.lists.has(t.listId));
+    }
+
+    function renderFilterBar() {
+      const bar = document.getElementById('filterBar');
+      if (!currentUser || (currentView !== 'board' && currentView !== 'calendar')) {
+        bar.classList.remove('active');
+        return;
+      }
+      bar.classList.add('active');
+      const studentGroup = document.getElementById('studentFilters');
+      const listGroup = document.getElementById('listFilters');
+      studentGroup.innerHTML = '<strong>Students:</strong>';
+      Object.entries(userMap).forEach(([email, user]) => {
+        if (user.role !== 'student') return;
+        const label = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !filterHidden.students.has(email);
+        cb.addEventListener('change', () => {
+          if (cb.checked) filterHidden.students.delete(email); else filterHidden.students.add(email);
+          render();
+        });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(user.name));
+        studentGroup.appendChild(label);
+      });
+      listGroup.innerHTML = '<strong>Categories:</strong>';
+      getAllLists().forEach(list => {
+        const label = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !filterHidden.lists.has(list.id);
+        cb.addEventListener('change', () => {
+          if (cb.checked) filterHidden.lists.delete(list.id); else filterHidden.lists.add(list.id);
+          render();
+        });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(list.name));
+        listGroup.appendChild(label);
+      });
     }
 
     function getDisplayDate(task) {
