@@ -372,7 +372,7 @@
     const USER_KEY = 'hst_user';
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const supabase = window.supabase.createClient('https://zbmktdoivzlapmaccwvh.supabase.co', 'sb_publishable_W3BXowc4pBBP_o2VCL_EhQ_-0q80ssj');
+    const supabaseClient = window.supabase.createClient('https://zbmktdoivzlapmaccwvh.supabase.co', 'sb_publishable_W3BXowc4pBBP_o2VCL_EhQ_-0q80ssj');
 
     let currentUser = null;
     let activeListId = null;
@@ -468,7 +468,7 @@
 
     async function syncSpacesFromSupabase() {
       try {
-        const { data: rows, error } = await supabase.from('spaces').select('*').eq('id', 'main');
+        const { data: rows, error } = await supabaseClient.from('spaces').select('*').eq('id', 'main');
         if (error) throw error;
         if (rows && rows.length && rows[0].data && Array.isArray(rows[0].data)) {
           spaces = rows[0].data;
@@ -495,7 +495,7 @@
 
     function saveSpaces() {
       localStorage.setItem(SPACE_KEY, JSON.stringify(spaces));
-      supabase.from('spaces').upsert({ id: 'main', data: spaces }).catch(console.error);
+      supabaseClient.from('spaces').upsert({ id: 'main', data: spaces }).catch(console.error);
     }
 
     function migrateTaskFields(arr) {
@@ -524,7 +524,7 @@
 
     async function syncTasksFromSupabase() {
       try {
-        const { data: rows, error } = await supabase.from('tasks').select('*');
+        const { data: rows, error } = await supabaseClient.from('tasks').select('*');
         if (error) throw error;
         if (rows && rows.length) {
           const arr = rows.map(row => {
@@ -547,7 +547,7 @@
     function saveTasks() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
       const payload = tasks.map(t => ({ id: t.id, data: t }));
-      supabase.from('tasks').upsert(payload).catch(console.error);
+      supabaseClient.from('tasks').upsert(payload).catch(console.error);
     }
 
     function findList(listId) {
