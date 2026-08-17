@@ -552,18 +552,18 @@
 
     function findList(listId) {
       for (const space of spaces) {
-        const res = findListInFolders(space.folders, [], space);
+        const res = findListInFolders(listId, space.folders, [], space);
         if (res) return res;
       }
       return null;
     }
 
-    function findListInFolders(folders, ancestors, space) {
+    function findListInFolders(listId, folders, ancestors, space) {
       for (const folder of (folders || [])) {
         for (const list of (folder.lists || [])) {
           if (list.id === listId) return { space, ancestors: [...ancestors], folder, list };
         }
-        const nested = findListInFolders(folder.folders, [...ancestors, folder], space);
+        const nested = findListInFolders(listId, folder.folders, [...ancestors, folder], space);
         if (nested) return nested;
       }
       return null;
