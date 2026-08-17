@@ -532,10 +532,10 @@
   <script>
     const userMap = {
       'jamie@projects-consultant.com': { name: 'Jamie Anderson', role: 'manager' },
-      'lucas@projects-consultant.com': { name: 'Lucas Anderson', role: 'student' },
-      'emily@projects-consultant.com': { name: 'Emily Anderson', role: 'student' }
+      'jamie@precisioncabling.com.au': { name: 'Lucas Anderson', role: 'student' },
+      'admin@precisioncabling.com.au': { name: 'Emily Anderson', role: 'student' }
     };
-    const legacyToEmail = { manager: 'jamie@projects-consultant.com', student1: 'lucas@projects-consultant.com', student2: 'emily@projects-consultant.com' };
+    const legacyToEmail = { manager: 'jamie@projects-consultant.com', student1: 'jamie@precisioncabling.com.au', student2: 'admin@precisioncabling.com.au', 'lucas@projects-consultant.com': 'jamie@precisioncabling.com.au', 'emily@projects-consultant.com': 'admin@precisioncabling.com.au' };
     const statuses = ['Planned', 'Delayed', 'In Progress', 'Cancelled', 'Completed'];
     const priorities = ['Low', 'Medium', 'High', 'Optional'];
     const STORAGE_KEY = 'hst_tasks';
@@ -570,7 +570,7 @@
 
     function seedSpaces(studentName, email) {
       const sportingName = studentName ? studentName + "'s Activities" : 'Sporting Activities';
-      const isEmily = email === 'emily@projects-consultant.com';
+      const isEmily = email === 'admin@precisioncabling.com.au';
       const homeSchoolName = isEmily ? 'Homework' : 'Home Schooling';
       return [
         {
@@ -621,17 +621,17 @@
     function seedTasks() {
       const today = new Date().toISOString().split('T')[0];
       const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const lucasSpaces = getStudentSpaces('lucas@projects-consultant.com');
-      const emilySpaces = getStudentSpaces('emily@projects-consultant.com');
+      const lucasSpaces = getStudentSpaces('jamie@precisioncabling.com.au');
+      const emilySpaces = getStudentSpaces('admin@precisioncabling.com.au');
       const lucasMathList = lucasSpaces[0].folders[0].lists[0].id;
       const lucasPEList = lucasSpaces[0].folders[1].lists[0].id;
       const lucasSportList = lucasSpaces[1].folders[0].lists[0].id;
       const emilySportList = emilySpaces[1].folders[0].lists[1].id;
       return [
-        { id: generateId(), title: 'Math worksheet', listId: lucasMathList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' },
-        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: lucasPEList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
-        { id: generateId(), title: 'Daily 5k run', listId: lucasSportList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' },
-        { id: generateId(), title: 'Stretching routine', listId: emilySportList, status: 'Completed', assignee: 'emily@projects-consultant.com', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' }
+        { id: generateId(), title: 'Math worksheet', listId: lucasMathList, status: 'Planned', assignee: 'jamie@precisioncabling.com.au', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' },
+        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: lucasPEList, status: 'Planned', assignee: 'jamie@precisioncabling.com.au', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
+        { id: generateId(), title: 'Daily 5k run', listId: lucasSportList, status: 'Planned', assignee: 'jamie@precisioncabling.com.au', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' },
+        { id: generateId(), title: 'Stretching routine', listId: emilySportList, status: 'Completed', assignee: 'admin@precisioncabling.com.au', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' }
       ];
     }
 
@@ -649,6 +649,13 @@
       } else {
         spacesByStudent = {};
       }
+      const emailMigration = { 'lucas@projects-consultant.com': 'jamie@precisioncabling.com.au', 'emily@projects-consultant.com': 'admin@precisioncabling.com.au' };
+      Object.entries(emailMigration).forEach(([oldEmail, newEmail]) => {
+        if (spacesByStudent[oldEmail] && !spacesByStudent[newEmail]) {
+          spacesByStudent[newEmail] = spacesByStudent[oldEmail];
+          delete spacesByStudent[oldEmail];
+        }
+      });
       Object.keys(userMap).forEach(email => {
         if (userMap[email].role === 'student' && !spacesByStudent[email]) {
           spacesByStudent[email] = seedSpaces(userMap[email].name, email);
@@ -677,7 +684,7 @@
     function migrateSpaces() {
       Object.entries(spacesByStudent).forEach(([email, spaces]) => {
         const studentName = userMap[email] ? userMap[email].name : null;
-        const isEmily = email === 'emily@projects-consultant.com';
+        const isEmily = email === 'admin@precisioncabling.com.au';
         spaces.forEach(s => {
           if (isEmily && (s.name === 'Home School' || s.name === 'Home Schooling')) s.name = 'Homework';
           if (!isEmily && s.name === 'Home School') s.name = 'Home Schooling';
