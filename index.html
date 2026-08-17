@@ -362,10 +362,10 @@
   <script>
     const userMap = {
       'jamie@projects-consultant.com': { name: 'Jamie Anderson', role: 'manager' },
-      'lucas@projects-consultsant.com': { name: 'Lucas Anderson', role: 'student' },
+      'lucas@projects-consultant.com': { name: 'Lucas Anderson', role: 'student' },
       'emily@projects-consultant.com': { name: 'Emily Anderson', role: 'student' }
     };
-    const legacyToEmail = { manager: 'jamie@projects-consultant.com', student1: 'lucas@projects-consultsant.com', student2: 'emily@projects-consultant.com' };
+    const legacyToEmail = { manager: 'jamie@projects-consultant.com', student1: 'lucas@projects-consultant.com', student2: 'emily@projects-consultant.com' };
     const statuses = ['Planned', 'Delayed', 'In Progress', 'Cancelled', 'Completed'];
     const priorities = ['Low', 'Medium', 'High', 'Optional'];
     const STORAGE_KEY = 'hst_tasks';
@@ -469,7 +469,7 @@
 
     async function syncSpacesFromSupabase() {
       try {
-        const { data: rows, error } = await supabaseClient.from('spaces').select('*').eq('id', 'main');
+        const { data: rows, error } = await supabaseClient.from('hs_spaces').select('*').eq('id', 'main');
         if (error) throw error;
         if (rows && rows.length && rows[0].data && Array.isArray(rows[0].data)) {
           spaces = rows[0].data;
@@ -500,7 +500,7 @@
 
     async function syncSpacesToSupabase() {
       try {
-        const { error } = await supabaseClient.from('spaces').upsert({ id: 'main', data: spaces });
+        const { error } = await supabaseClient.from('hs_spaces').upsert({ id: 'main', data: spaces });
         if (error) throw error;
       } catch (err) { console.error('Supabase spaces sync failed', err); }
     }
@@ -532,7 +532,7 @@
 
     async function syncTasksFromSupabase() {
       try {
-        const { data: rows, error } = await supabaseClient.from('tasks').select('*');
+        const { data: rows, error } = await supabaseClient.from('hs_tasks').select('*');
         if (error) throw error;
         if (rows && rows.length) {
           const arr = rows.map(row => {
@@ -902,7 +902,7 @@
       }
       saveTasks();
       if (updated) {
-        Promise.resolve(supabaseClient.from('tasks').upsert({ id: updated.id, data: updated })).catch(err => console.error('Supabase task sync failed', err));
+        Promise.resolve(supabaseClient.from('hs_tasks').upsert({ id: updated.id, data: updated })).catch(err => console.error('Supabase task sync failed', err));
       }
       renderSidebar();
       render();
@@ -917,7 +917,7 @@
       if (confirm('Delete this task?')) {
         tasks = tasks.filter(t => t.id !== id);
         saveTasks();
-        Promise.resolve(supabaseClient.from('tasks').delete().eq('id', id)).catch(err => console.error('Supabase task delete failed', err));
+        Promise.resolve(supabaseClient.from('hs_tasks').delete().eq('id', id)).catch(err => console.error('Supabase task delete failed', err));
         renderSidebar();
         render();
         closeModal();
@@ -1042,7 +1042,7 @@
       syncSpacesToSupabase();
       saveTasks();
       if (deletedTaskIds.length) {
-        Promise.resolve(supabaseClient.from('tasks').delete().in('id', deletedTaskIds)).catch(err => console.error('Supabase task delete failed', err));
+        Promise.resolve(supabaseClient.from('hs_tasks').delete().in('id', deletedTaskIds)).catch(err => console.error('Supabase task delete failed', err));
       }
       expandedFolders.delete(folderId);
       if (activeListId && listIds.has(activeListId)) {
@@ -1066,7 +1066,7 @@
       syncSpacesToSupabase();
       saveTasks();
       if (deletedTaskIds.length) {
-        Promise.resolve(supabaseClient.from('tasks').delete().in('id', deletedTaskIds)).catch(err => console.error('Supabase task delete failed', err));
+        Promise.resolve(supabaseClient.from('hs_tasks').delete().in('id', deletedTaskIds)).catch(err => console.error('Supabase task delete failed', err));
       }
       if (activeListId === listId) {
         activeListId = null;
