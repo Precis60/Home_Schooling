@@ -559,8 +559,8 @@
     const MANAGER_EMAIL = 'jamie@projects-consultant.com';
     const DEFAULT_USER_MAP = {
       'jamie@projects-consultant.com': { name: 'Jamie Anderson', role: 'manager' },
-      'jamie@precisioncabling.com.au': { name: 'Lucas Anderson', role: 'student' },
-      'admin@precisioncabling.com.au': { name: 'Emily Anderson', role: 'student' }
+      'lucas@projects-consultant.com': { name: 'Lucas Anderson', role: 'student' },
+      'emily@projects-consultant.com': { name: 'Emily Anderson', role: 'student' }
     };
     let userMap = { ...DEFAULT_USER_MAP };
 
@@ -577,7 +577,7 @@
         }
       } catch (err) { console.error('Failed to load user directory', err); }
     }
-    const legacyToEmail = { manager: 'jamie@projects-consultant.com', student1: 'jamie@precisioncabling.com.au', student2: 'admin@precisioncabling.com.au', 'lucas@projects-consultant.com': 'jamie@precisioncabling.com.au', 'emily@projects-consultant.com': 'admin@precisioncabling.com.au' };
+    const legacyToEmail = { manager: 'jamie@projects-consultant.com', student1: 'lucas@projects-consultant.com', student2: 'emily@projects-consultant.com', 'jamie@precisioncabling.com.au': 'lucas@projects-consultant.com', 'admin@precisioncabling.com.au': 'emily@projects-consultant.com' };
     const statuses = ['Planned', 'Delayed', 'In Progress', 'Cancelled', 'Completed'];
     const priorities = ['Low', 'Medium', 'High', 'Optional'];
     const STORAGE_KEY = 'hst_tasks';
@@ -612,7 +612,7 @@
 
     function seedSpaces(studentName, email) {
       const sportingName = studentName ? studentName + "'s Activities" : 'Sporting Activities';
-      const isEmily = email === 'admin@precisioncabling.com.au';
+      const isEmily = email === 'emily@projects-consultant.com';
       const homeSchoolName = isEmily ? 'Homework' : 'Home Schooling';
       return [
         {
@@ -663,23 +663,23 @@
     function seedTasks() {
       const today = new Date().toISOString().split('T')[0];
       const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const lucasSpaces = getStudentSpaces('jamie@precisioncabling.com.au');
-      const emilySpaces = getStudentSpaces('admin@precisioncabling.com.au');
+      const lucasSpaces = getStudentSpaces('lucas@projects-consultant.com');
+      const emilySpaces = getStudentSpaces('emily@projects-consultant.com');
       const lucasMathList = lucasSpaces[0].folders[0].lists[0].id;
       const lucasPEList = lucasSpaces[0].folders[1].lists[0].id;
       const lucasSportList = lucasSpaces[1].folders[0].lists[0].id;
       const emilySportList = emilySpaces[1].folders[0].lists[1].id;
       return [
-        { id: generateId(), title: 'Math worksheet', listId: lucasMathList, status: 'Planned', assignee: 'jamie@precisioncabling.com.au', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' },
-        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: lucasPEList, status: 'Planned', assignee: 'jamie@precisioncabling.com.au', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
-        { id: generateId(), title: 'Daily 5k run', listId: lucasSportList, status: 'Planned', assignee: 'jamie@precisioncabling.com.au', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' },
-        { id: generateId(), title: 'Stretching routine', listId: emilySportList, status: 'Completed', assignee: 'admin@precisioncabling.com.au', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' }
+        { id: generateId(), title: 'Math worksheet', listId: lucasMathList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' },
+        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: lucasPEList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
+        { id: generateId(), title: 'Daily 5k run', listId: lucasSportList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' },
+        { id: generateId(), title: 'Stretching routine', listId: emilySportList, status: 'Completed', assignee: 'emily@projects-consultant.com', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' }
       ];
     }
 
     function generateId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
-    function loadSpaces() {
+    async function loadSpaces() {
       const raw = localStorage.getItem(SPACE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -691,42 +691,61 @@
       } else {
         spacesByStudent = {};
       }
-      const emailMigration = { 'lucas@projects-consultant.com': 'jamie@precisioncabling.com.au', 'emily@projects-consultant.com': 'admin@precisioncabling.com.au' };
+      const emailMigration = { 'jamie@precisioncabling.com.au': 'lucas@projects-consultant.com', 'admin@precisioncabling.com.au': 'emily@projects-consultant.com' };
       Object.entries(emailMigration).forEach(([oldEmail, newEmail]) => {
         if (spacesByStudent[oldEmail] && !spacesByStudent[newEmail]) {
           spacesByStudent[newEmail] = spacesByStudent[oldEmail];
           delete spacesByStudent[oldEmail];
         }
       });
+      // Pull the authoritative copy from Supabase first (one row per student),
+      // so we don't regenerate random category IDs when real data already exists.
+      await syncSpacesFromSupabase();
       Object.keys(userMap).forEach(email => {
         if (userMap[email].role === 'student' && !spacesByStudent[email]) {
           spacesByStudent[email] = seedSpaces(userMap[email].name, email);
+          syncSpaceRowToSupabase(email);
         }
       });
       migrateSpaces();
       saveSpaces();
-      syncSpacesFromSupabase();
     }
 
     async function syncSpacesFromSupabase() {
       try {
-        const { data: rows, error } = await supabaseClient.from('hs_spaces').select('*').eq('id', 'main');
+        const { data: rows, error } = await supabaseClient.from('hs_spaces').select('*');
         if (error) throw error;
-        if (rows && rows.length && rows[0].data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data)) {
-          spacesByStudent = rows[0].data;
+        if (rows && rows.length) {
+          rows.forEach(row => {
+            if (row.data && Array.isArray(row.data)) {
+              spacesByStudent[row.id] = row.data;
+            }
+          });
           localStorage.setItem(SPACE_KEY, JSON.stringify(spacesByStudent));
           migrateSpaces();
-          if (currentUser) { renderSidebar(); if (activeListId) selectList(activeListId); }
-        } else {
-          saveSpaces();
+          if (currentUser) { renderSidebar(); }
         }
       } catch (err) { console.error('Supabase sync spaces failed', err); }
+    }
+
+    function getSpaceOwnerEmail(spaceId) {
+      for (const [email, spaces] of Object.entries(spacesByStudent)) {
+        if ((spaces || []).some(s => s.id === spaceId)) return email;
+      }
+      return null;
+    }
+
+    function syncSpaceRowToSupabase(email) {
+      if (!email || !spacesByStudent[email]) return;
+      Promise.resolve(supabaseClient.from('hs_spaces').upsert({ id: email, data: spacesByStudent[email] }))
+        .then(({ error }) => { if (error) console.error('Supabase spaces sync failed', error); })
+        .catch(err => console.error('Supabase spaces sync failed', err));
     }
 
     function migrateSpaces() {
       Object.entries(spacesByStudent).forEach(([email, spaces]) => {
         const studentName = userMap[email] ? userMap[email].name : null;
-        const isEmily = email === 'admin@precisioncabling.com.au';
+        const isEmily = email === 'emily@projects-consultant.com';
         spaces.forEach(s => {
           if (isEmily && (s.name === 'Home School' || s.name === 'Home Schooling')) s.name = 'Homework';
           if (!isEmily && s.name === 'Home School') s.name = 'Home Schooling';
@@ -747,13 +766,6 @@
 
     function saveSpaces() {
       localStorage.setItem(SPACE_KEY, JSON.stringify(spacesByStudent));
-    }
-
-    async function syncSpacesToSupabase() {
-      try {
-        const { error } = await supabaseClient.from('hs_spaces').upsert({ id: 'main', data: spacesByStudent });
-        if (error) throw error;
-      } catch (err) { console.error('Supabase spaces sync failed', err); }
     }
 
     function migrateTaskFields(arr) {
@@ -1603,7 +1615,7 @@
       const id = generateId();
       space.folders.push({ id, name: name.trim(), folders: [], lists: [] });
       saveSpaces();
-      syncSpacesToSupabase();
+      syncSpaceRowToSupabase(studentEmail);
       expandedFolders.add(id);
       renderSidebar();
     }
@@ -1636,7 +1648,7 @@
       found.folder.folders.push({ id, name: name.trim(), folders: [], lists: [] });
       expandedFolders.add(id);
       saveSpaces();
-      syncSpacesToSupabase();
+      syncSpaceRowToSupabase(getSpaceOwnerEmail(found.space.id));
       renderSidebar();
     }
 
@@ -1652,7 +1664,7 @@
       if (!name) return;
       found.folder.lists.push({ id: generateId(), name: name.trim() });
       saveSpaces();
-      syncSpacesToSupabase();
+      syncSpaceRowToSupabase(getSpaceOwnerEmail(spaceId));
       renderSidebar();
     }
 
@@ -1664,7 +1676,7 @@
       if (!name) return;
       found.folder.lists.push({ id: generateId(), name: name.trim() });
       saveSpaces();
-      syncSpacesToSupabase();
+      syncSpaceRowToSupabase(getSpaceOwnerEmail(found.space.id));
       renderSidebar();
     }
 
@@ -1673,7 +1685,7 @@
       const found = findFolder(folderId);
       if (!found) return;
       const name = prompt('Rename folder:', found.folder.name);
-      if (name) { found.folder.name = name.trim(); saveSpaces(); syncSpacesToSupabase(); renderSidebar(); }
+      if (name) { found.folder.name = name.trim(); saveSpaces(); syncSpaceRowToSupabase(getSpaceOwnerEmail(found.space.id)); renderSidebar(); }
     }
 
     function renameList(listId) {
@@ -1681,7 +1693,7 @@
       const found = findList(listId);
       if (!found) return;
       const name = prompt('Rename list:', found.list.name);
-      if (name) { found.list.name = name.trim(); saveSpaces(); syncSpacesToSupabase(); renderSidebar(); }
+      if (name) { found.list.name = name.trim(); saveSpaces(); syncSpaceRowToSupabase(getSpaceOwnerEmail(found.space.id)); renderSidebar(); }
     }
 
     function deleteFolder(folderId) {
@@ -1689,13 +1701,14 @@
       const found = findFolder(folderId);
       if (!found) return;
       if (!confirm('Delete folder "' + found.folder.name + '" and all its lists?')) return;
+      const ownerEmail = getSpaceOwnerEmail(found.space.id);
       const listIds = collectListIds(found.folder);
       const deletedTaskIds = tasks.filter(t => listIds.has(t.listId)).map(t => t.id);
       const idx = found.parent.findIndex(f => f.id === folderId);
       if (idx !== -1) found.parent.splice(idx, 1);
       tasks = tasks.filter(t => !listIds.has(t.listId));
       saveSpaces();
-      syncSpacesToSupabase();
+      syncSpaceRowToSupabase(ownerEmail);
       saveTasks();
       if (deletedTaskIds.length) {
         Promise.resolve(supabaseClient.from('hs_tasks').delete().in('id', deletedTaskIds)).catch(err => console.error('Supabase task delete failed', err));
@@ -1715,12 +1728,13 @@
       const found = findList(listId);
       if (!found) return;
       if (!confirm('Delete list "' + found.list.name + '"?')) return;
+      const ownerEmail = getSpaceOwnerEmail(found.space.id);
       const idx = found.folder.lists.findIndex(l => l.id === listId);
       if (idx !== -1) found.folder.lists.splice(idx, 1);
       const deletedTaskIds = tasks.filter(t => t.listId === listId).map(t => t.id);
       tasks = tasks.filter(t => t.listId !== listId);
       saveSpaces();
-      syncSpacesToSupabase();
+      syncSpaceRowToSupabase(ownerEmail);
       saveTasks();
       if (deletedTaskIds.length) {
         Promise.resolve(supabaseClient.from('hs_tasks').delete().in('id', deletedTaskIds)).catch(err => console.error('Supabase task delete failed', err));
@@ -2169,7 +2183,7 @@
       }
       currentUser = { ...data.user, name: userMap[email].name, role: userMap[email].role, email };
       document.getElementById('loginError').style.display = 'none';
-      loadSpaces();
+      await loadSpaces();
       loadTasks();
       setViews();
       renderSidebar();
@@ -2402,7 +2416,7 @@
         currentUser = { ...session.user, name: userMap[email].name, role: userMap[email].role, email };
         supabaseClient.auth.refreshSession().catch(err => console.error('Session refresh failed', err));
         setViews();
-        loadSpaces();
+        await loadSpaces();
         loadTasks();
         renderSidebar();
         switchView('dashboard');
