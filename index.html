@@ -333,11 +333,11 @@
       <form id="loginForm">
         <div class="field">
           <label for="username">Email</label>
-          <input id="username" name="username" placeholder="Enter email" required>
+          <input id="username" name="username" type="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" placeholder="Enter email" required>
         </div>
         <div class="field">
           <label for="password">Password</label>
-          <input id="password" type="password" name="password" placeholder="Enter password" required>
+          <input id="password" type="password" name="password" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="current-password" placeholder="Enter password" required>
         </div>
         <button type="submit" class="btn btn-block">Log In</button>
         <div id="loginError" class="error" style="display:none">Invalid credentials.</div>
