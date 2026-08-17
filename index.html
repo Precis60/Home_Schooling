@@ -585,7 +585,11 @@
     const USER_KEY = 'hst_user';
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const supabaseClient = window.supabase.createClient('https://zbmktdoivzlapmaccwvh.supabase.co', 'sb_publishable_W3BXowc4pBBP_o2VCL_EhQ_-0q80ssj');
+    // Dedicated Supabase project for this app only - see SUPABASE_SETUP.md for how to
+    // create it and fill in these two values. Do not point this at any other project.
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_PUBLISHABLE_KEY = 'YOUR_SUPABASE_PUBLISHABLE_KEY';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
     let currentUser = null;
     let activeListId = null;
