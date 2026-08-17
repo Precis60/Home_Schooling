@@ -214,18 +214,17 @@
     @media (max-width: 540px) { .field-row { grid-template-columns: 1fr; } }
     .calendar-time-view { background: var(--card); border-radius: var(--radius-md); border: 1px solid var(--border); display: flex; flex-direction: column; }
     #calendarGrid.week-view { overflow: auto; }
-    .time-view-header { position: sticky; top: 0; z-index: 10; }
     .time-view-header { display: flex; border-bottom: 1px solid var(--border); background: #fafafa; }
-    .time-view-header .time-gutter { width: 60px; flex-shrink: 0; }
-    .day-header-cell { flex: 1; text-align: center; padding: 14px 8px; min-width: 80px; }
+    .time-view-header .time-gutter { position: sticky; left: 0; top: 0; z-index: 12; width: 60px; flex-shrink: 0; background: #fafafa; }
+    .day-header-cell { position: sticky; top: 0; z-index: 11; flex: 1; text-align: center; padding: 14px 8px; min-width: 80px; background: #fafafa; }
     .day-header-cell .day-name { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
     .day-header-cell .day-date { display: block; font-size: 22px; font-weight: 700; margin-top: 2px; }
     .all-day-row { display: flex; border-bottom: 1px solid var(--border); min-height: 42px; }
-    .all-day-label { width: 60px; font-size: 10px; color: var(--muted); text-transform: uppercase; text-align: right; padding: 14px 10px 0 0; flex-shrink: 0; }
+    .all-day-label { position: sticky; left: 0; z-index: 8; background: var(--card); width: 60px; font-size: 10px; color: var(--muted); text-transform: uppercase; text-align: right; padding: 14px 10px 0 0; flex-shrink: 0; }
     .all-day-cells { display: flex; flex: 1; min-width: 0; }
     .all-day-cell { flex: 1; border-left: 1px solid var(--border); padding: 4px; display: flex; flex-direction: column; gap: 3px; min-width: 80px; }
     .time-grid { display: flex; position: relative; }
-    .time-gutter-col { width: 60px; flex-shrink: 0; }
+    .time-gutter-col { position: sticky; left: 0; z-index: 9; background: var(--card); width: 60px; flex-shrink: 0; }
     .time-slot { height: 50px; font-size: 11px; color: var(--muted); text-align: right; padding: 6px 10px 0 0; box-sizing: border-box; border-top: 1px solid #f0f0f2; }
     .week-columns { display: flex; flex: 1; min-width: 700px; }
     .day-column { flex: 1; position: relative; border-left: 1px solid var(--border); min-height: 1200px; min-width: 80px; }
