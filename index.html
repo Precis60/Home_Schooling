@@ -51,16 +51,16 @@
     .tree-space { margin-bottom: 14px; }
     .space-name { font-weight: 700; font-size: 13px; color: var(--text); padding: 6px 4px; text-transform: uppercase; letter-spacing: 0.02em; }
     .tree-folder { margin-left: 8px; }
-    .folder-row { display: flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: 6px; color: var(--text); font-size: 14px; }
+    .folder-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; color: var(--text); font-size: 14px; position: relative; }
     .folder-row:hover, .folder-row.active { background: var(--bg); }
     .chevron { width: 16px; text-align: center; color: var(--muted); font-size: 11px; }
     .folder-icon { color: var(--muted); }
     .folder-name { flex: 1; }
     .tree-lists { margin-left: 22px; display: none; }
     .tree-lists.open { display: block; }
-    .list-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+    .list-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--muted); cursor: pointer; position: relative; }
     .list-row:hover, .list-row.active { background: var(--bg); color: var(--primary); }
-    .list-row .count { margin-left: auto; font-size: 11px; background: var(--bg); padding: 1px 6px; border-radius: 10px; }
+    .list-row .count { font-size: 11px; background: var(--bg); padding: 1px 6px; border-radius: 10px; }
     .sidebar-actions { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
     .sidebar-actions button { flex: 1; font-size: 12px; padding: 8px; }
 
@@ -176,11 +176,14 @@
     .folder-body { display: none; }
     .folder-body.open { display: block; }
     .folder-children { margin-left: 12px; }
-    .manager-actions { display: inline-flex; gap: 4px; }
-    .manager-action { font-size: 11px; color: var(--primary); cursor: pointer; padding: 1px 3px; border-radius: 4px; white-space: nowrap; }
-    .manager-action:hover { background: rgba(124,58,237,0.08); }
     .list-name { flex: 1; }
-    .list-row .manager-actions { margin-left: 8px; }
+    .menu-btn { width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; background: transparent; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .menu-btn:hover, .menu-btn.active { background: rgba(124,58,237,0.12); color: var(--primary); }
+    .dropdown-menu { position: fixed; z-index: 200; min-width: 150px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: 4px 0; display: flex; flex-direction: column; }
+    .dropdown-item { padding: 7px 12px; font-size: 13px; color: var(--text); background: transparent; border: none; text-align: left; cursor: pointer; }
+    .dropdown-item:hover { background: var(--bg); color: var(--primary); }
+    .dropdown-item.danger { color: #ef4444; }
+    .dropdown-item.danger:hover { background: #fee2e2; color: #b91c1c; }
   </style>
 </head>
 <body>
@@ -557,19 +560,16 @@
       row.innerHTML = '<span class="chevron">' + (isOpen ? '&#9662;' : '&#9656;') + '</span>' +
         '<span class="folder-icon">&#128193;</span>' +
         '<span class="folder-name">' + escapeHtml(folder.name) + '</span>';
-      const actions = document.createElement('span');
-      actions.className = 'manager-actions';
-      if (currentUser.role !== 'manager') actions.classList.add('hidden');
-      actions.innerHTML = '<span class="manager-action" data-action="add-subfolder">+ Subfolder</span>' +
-        '<span class="manager-action" data-action="add-list">+ List</span>' +
-        '<span class="manager-action" data-action="rename-folder">Edit</span>' +
-        '<span class="manager-action" data-action="delete-folder">Delete</span>';
-      actions.querySelectorAll('.manager-action').forEach(a => {
-        a.dataset.id = folder.id;
-        a.addEventListener('click', e => { e.stopPropagation(); onFolderAction(a.dataset.action, a.dataset.id); });
-      });
-      row.appendChild(actions);
-      row.addEventListener('click', e => { if (e.target.closest('.manager-action')) return; toggleFolder(folder.id); });
+      if (currentUser.role === 'manager') {
+        const menuBtn = document.createElement('button');
+        menuBtn.type = 'button';
+        menuBtn.className = 'menu-btn';
+        menuBtn.innerHTML = '&#x22EE;';
+        menuBtn.title = 'Actions';
+        menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'folder', folder.id); });
+        row.appendChild(menuBtn);
+      }
+      row.addEventListener('click', e => { if (e.target.closest('.menu-btn, .dropdown-menu')) return; toggleFolder(folder.id); });
       folderEl.appendChild(row);
 
       const body = document.createElement('div');
@@ -585,18 +585,17 @@
         const listRow = document.createElement('div');
         listRow.className = 'list-row' + (activeListId === list.id ? ' active' : '');
         listRow.innerHTML = '<span class="list-name">' + escapeHtml(list.name) + '</span>' +
-          '<span class="count">' + getTaskCount(list.id) + '</span>' +
-          '<span class="manager-actions">' +
-          '<span class="manager-action" data-action="rename-list">Edit</span>' +
-          '<span class="manager-action" data-action="delete-list">Delete</span>' +
-          '</span>';
-        const listActions = listRow.querySelector('.manager-actions');
-        if (currentUser.role !== 'manager') listActions.classList.add('hidden');
-        listRow.querySelectorAll('.manager-action').forEach(a => {
-          a.dataset.id = list.id;
-          a.addEventListener('click', e => { e.stopPropagation(); onListAction(a.dataset.action, a.dataset.id); });
-        });
-        listRow.addEventListener('click', e => { if (e.target.closest('.manager-action')) return; selectList(list.id); });
+          '<span class="count">' + getTaskCount(list.id) + '</span>';
+        if (currentUser.role === 'manager') {
+          const menuBtn = document.createElement('button');
+          menuBtn.type = 'button';
+          menuBtn.className = 'menu-btn';
+          menuBtn.innerHTML = '&#x22EE;';
+          menuBtn.title = 'Actions';
+          menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'list', list.id); });
+          listRow.appendChild(menuBtn);
+        }
+        listRow.addEventListener('click', e => { if (e.target.closest('.menu-btn, .dropdown-menu')) return; selectList(list.id); });
         listContainer.appendChild(listRow);
       });
       body.appendChild(listContainer);
@@ -614,6 +613,50 @@
     function onListAction(action, listId) {
       if (action === 'rename-list') renameList(listId);
       else if (action === 'delete-list') deleteList(listId);
+    }
+
+    function closeAllDropdowns() {
+      document.querySelectorAll('.dropdown-menu').forEach(d => d.remove());
+      document.querySelectorAll('.menu-btn.active').forEach(b => b.classList.remove('active'));
+    }
+
+    function toggleDropdown(btn, type, id) {
+      if (btn.classList.contains('active')) {
+        closeAllDropdowns();
+        return;
+      }
+      closeAllDropdowns();
+      btn.classList.add('active');
+      const dropdown = document.createElement('div');
+      dropdown.className = 'dropdown-menu';
+      dropdown.addEventListener('click', e => e.stopPropagation());
+      const items = type === 'folder' ? [
+        { action: 'add-subfolder', label: 'Add Subfolder' },
+        { action: 'add-list', label: 'Add List' },
+        { action: 'rename-folder', label: 'Rename' },
+        { action: 'delete-folder', label: 'Delete', danger: true }
+      ] : [
+        { action: 'rename-list', label: 'Rename' },
+        { action: 'delete-list', label: 'Delete', danger: true }
+      ];
+      items.forEach(item => {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'dropdown-item' + (item.danger ? ' danger' : '');
+        el.textContent = item.label;
+        el.addEventListener('click', e => {
+          e.stopPropagation();
+          closeAllDropdowns();
+          if (type === 'folder') onFolderAction(item.action, id);
+          else onListAction(item.action, id);
+        });
+        dropdown.appendChild(el);
+      });
+      const rect = btn.getBoundingClientRect();
+      const width = 150;
+      dropdown.style.top = (rect.bottom + 4) + 'px';
+      dropdown.style.left = Math.max(4, Math.min(window.innerWidth - width - 4, rect.right - width)) + 'px';
+      document.body.appendChild(dropdown);
     }
 
     function toggleFolder(folderId) {
@@ -1171,6 +1214,7 @@
     document.getElementById('calToday').addEventListener('click', () => { calendarDate = new Date(); renderCalendar(); });
 
     window.addEventListener('click', e => {
+      closeAllDropdowns();
       if (e.target.id === 'modal') closeModal();
       if (e.target.id === 'datePickerModal') closeDatePicker();
       if (e.target.id === 'timePickerModal') closeTimePicker();
@@ -1178,6 +1222,7 @@
 
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
+        closeAllDropdowns();
         if (document.getElementById('datePickerModal').classList.contains('active')) { closeDatePicker(); return; }
         if (document.getElementById('timePickerModal').classList.contains('active')) { closeTimePicker(); return; }
         if (document.getElementById('modal').classList.contains('active')) closeModal();
