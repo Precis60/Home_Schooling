@@ -211,6 +211,32 @@
     #tTitle { font-size: 15px; font-weight: 600; }
     .field select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3e%3cpath fill='%236b7280' d='M6 9L1 4h10z'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
     @media (max-width: 540px) { .field-row { grid-template-columns: 1fr; } }
+    .calendar-time-view { background: var(--card); border-radius: var(--radius-md); border: 1px solid var(--border); overflow: hidden; }
+    .calendar-time-view.week-view { overflow-x: auto; }
+    .time-view-header { display: flex; border-bottom: 1px solid var(--border); background: #fafafa; }
+    .time-view-header .time-gutter { width: 60px; flex-shrink: 0; }
+    .day-header-cell { flex: 1; text-align: center; padding: 14px 8px; min-width: 80px; }
+    .day-header-cell .day-name { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .day-header-cell .day-date { display: block; font-size: 22px; font-weight: 700; margin-top: 2px; }
+    .all-day-row { display: flex; border-bottom: 1px solid var(--border); min-height: 42px; }
+    .all-day-label { width: 60px; font-size: 10px; color: var(--muted); text-transform: uppercase; text-align: right; padding: 14px 10px 0 0; flex-shrink: 0; }
+    .all-day-cells { display: flex; flex: 1; min-width: 0; }
+    .all-day-cell { flex: 1; border-left: 1px solid var(--border); padding: 4px; display: flex; flex-direction: column; gap: 3px; min-width: 80px; }
+    .time-grid { display: flex; position: relative; }
+    .time-gutter-col { width: 60px; flex-shrink: 0; }
+    .time-slot { height: 50px; font-size: 11px; color: var(--muted); text-align: right; padding: 6px 10px 0 0; box-sizing: border-box; border-top: 1px solid #f0f0f2; }
+    .week-columns { display: flex; flex: 1; min-width: 700px; }
+    .day-column { flex: 1; position: relative; border-left: 1px solid var(--border); min-height: 1200px; min-width: 80px; }
+    .hour-row { height: 50px; border-top: 1px solid #f0f0f2; box-sizing: border-box; }
+    .calendar-event { position: absolute; left: 3px; right: 3px; border-radius: 6px; padding: 5px 7px; font-size: 11.5px; box-shadow: var(--shadow-sm); cursor: pointer; overflow: hidden; z-index: 2; border-left: 3px solid transparent; }
+    .calendar-event.all-day { position: relative; left: 0; right: 0; margin-bottom: 3px; }
+    .calendar-event strong { display: block; font-weight: 600; line-height: 1.25; }
+    .calendar-event .event-time { font-size: 10.5px; opacity: 0.8; margin-top: 2px; }
+    .calendar-event .event-desc { font-size: 10.5px; opacity: 0.85; margin-top: 4px; line-height: 1.3; }
+    .calendar-event.priority-high { border-color: #991b1b; }
+    .calendar-event.priority-medium { border-color: #d97706; }
+    .calendar-event.priority-low { border-color: #10b981; }
+    .calendar-event.priority-optional { border-color: #4338ca; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
@@ -819,6 +845,84 @@
       return time ? date + ' at ' + time : date;
     }
 
+    function parseTimeToMinutes(t) {
+      if (!t) return null;
+      const m = String(t).match(/^([0-9]{1,2}):([0-9]{2})$/);
+      if (!m) return null;
+      const h = Number(m[1]);
+      const min = Number(m[2]);
+      if (h > 23 || min > 59) return null;
+      return h * 60 + min;
+    }
+
+    function formatHourLabel(h) {
+      const h12 = h % 12 || 12;
+      return h12 + (h < 12 ? 'am' : 'pm');
+    }
+
+    function formatTime12(hhmm) {
+      if (!hhmm) return '';
+      const m = String(hhmm).match(/^([0-9]{1,2}):([0-9]{2})$/);
+      if (!m) return hhmm;
+      let h = Number(m[1]);
+      const min = Number(m[2]);
+      const h12 = h % 12 || 12;
+      return h12 + ':' + String(min).padStart(2, '0') + (h < 12 ? 'am' : 'pm');
+    }
+
+    function getDayTaskRanges(dateStr, visibleTasks) {
+      const ranges = [];
+      visibleTasks.forEach(task => {
+        const start = task.startDate || task.dueDate;
+        const end = task.dueDate || task.startDate;
+        if (!start || !end || dateStr < start || dateStr > end) return;
+        const isStart = dateStr === start;
+        const isEnd = dateStr === end;
+        const startT = parseTimeToMinutes(task.startTime);
+        const dueT = parseTimeToMinutes(task.dueTime);
+        let startMins = 0;
+        let endMins = 24 * 60;
+        let allDay = false;
+        if (isStart && startT !== null) startMins = startT;
+        if (isEnd && dueT !== null) endMins = dueT;
+        if (!isStart && !isEnd) allDay = true;
+        if (isStart && isEnd && startT === null && dueT === null) allDay = true;
+        if (isStart && isEnd && startT === null && dueT !== null) startMins = Math.max(0, dueT - 60);
+        if (isStart && isEnd && startT !== null && dueT === null) endMins = Math.min(24 * 60, startT + 60);
+        if (isStart && !isEnd && startT === null) { startMins = 0; endMins = 24 * 60; allDay = true; }
+        if (!isStart && isEnd && dueT === null) { startMins = 0; endMins = 24 * 60; allDay = true; }
+        if (endMins <= startMins) endMins = startMins + 60;
+        if (allDay) { startMins = 0; endMins = 24 * 60; }
+        ranges.push({ task, startMins, endMins, allDay });
+      });
+      return ranges;
+    }
+
+    function createTimeEvent(task, startMins, endMins, allDay) {
+      const el = document.createElement('div');
+      const p = (task.priority || 'Medium').toLowerCase();
+      el.className = 'calendar-event priority-' + p + (allDay ? ' all-day' : '');
+      el.addEventListener('click', () => openTask(task.id));
+      const startStr = formatTime12(task.startTime);
+      const endStr = formatTime12(task.dueTime);
+      let time = '';
+      if (startStr && endStr) time = startStr + ' – ' + endStr;
+      else if (startStr || endStr) time = (startStr || endStr);
+      const snippet = (task.notes ? task.notes : (task.desc || '')).substring(0, 60);
+      const full = (task.notes ? task.notes : (task.desc || ''));
+      const noteText = full.length > 60 ? snippet + '…' : snippet;
+      el.innerHTML = '<strong>' + escapeHtml(task.title) + '</strong>' +
+        (time ? '<div class="event-time">' + time + '</div>' : '') +
+        (noteText ? '<div class="event-desc">' + escapeHtml(noteText) + '</div>' : '');
+      if (!allDay) {
+        const top = (startMins / 60) * 50;
+        const height = Math.max(30, ((endMins - startMins) / 60) * 50);
+        el.style.top = top + 'px';
+        el.style.height = height + 'px';
+      }
+      return el;
+    }
+
     function escapeHtml(s) {
       return s.split('').map(c => {
         if (c === '&') return '&amp;';
@@ -1278,51 +1382,93 @@
         document.getElementById('calDateLabel').textContent = MONTH_NAMES[calendarDate.getMonth()] + ' ' + calendarDate.getFullYear();
       } else if (calendarMode === 'week') {
         const start = startOfWeek(calendarDate);
-        grid.className = 'calendar-week';
+        grid.className = 'calendar-time-view week-view';
+        const header = document.createElement('div');
+        header.className = 'time-view-header';
+        header.innerHTML = '<div class="time-gutter"></div>';
+        const allDayRow = document.createElement('div');
+        allDayRow.className = 'all-day-row';
+        allDayRow.innerHTML = '<div class="all-day-label">All day</div><div class="all-day-cells"></div>';
+        const allDayCells = allDayRow.querySelector('.all-day-cells');
+        const weekColumns = document.createElement('div');
+        weekColumns.className = 'week-columns';
         for (let i = 0; i < 7; i++) {
           const d = addDays(start, i);
           const dateStr = toISODate(d);
-          const cell = document.createElement('div');
-          cell.className = 'calendar-day';
-          cell.innerHTML = '<div class="day-label">' + DAY_NAMES[d.getDay()] + ' ' + d.getDate() + '</div>';
-          const taskList = document.createElement('div');
-          taskList.className = 'day-tasks';
-          const dayTasks = getDayTasks(dateStr, visibleTasks);
-          if (dayTasks.length === 0) {
-            taskList.innerHTML = '<span style="color:#9ca3af;font-size:11px">No tasks</span>';
-          } else {
-            dayTasks.forEach(task => taskList.appendChild(createCalendarTask(task, dateStr)));
+          const dayHeader = document.createElement('div');
+          dayHeader.className = 'day-header-cell';
+          dayHeader.innerHTML = '<span class="day-name">' + DAY_NAMES[d.getDay()] + '</span><span class="day-date">' + d.getDate() + '</span>';
+          header.appendChild(dayHeader);
+          const allDayCell = document.createElement('div');
+          allDayCell.className = 'all-day-cell';
+          const ranges = getDayTaskRanges(dateStr, visibleTasks);
+          ranges.forEach(r => { if (r.allDay) allDayCell.appendChild(createTimeEvent(r.task, r.startMins, r.endMins, true)); });
+          allDayCells.appendChild(allDayCell);
+          const dayCol = document.createElement('div');
+          dayCol.className = 'day-column';
+          for (let h = 0; h < 24; h++) {
+            const row = document.createElement('div');
+            row.className = 'hour-row';
+            dayCol.appendChild(row);
           }
-          cell.appendChild(taskList);
-          grid.appendChild(cell);
+          ranges.forEach(r => { if (!r.allDay) dayCol.appendChild(createTimeEvent(r.task, r.startMins, r.endMins, false)); });
+          weekColumns.appendChild(dayCol);
         }
+        grid.appendChild(header);
+        if (allDayCells.querySelector('.calendar-event')) grid.appendChild(allDayRow);
+        const timeGrid = document.createElement('div');
+        timeGrid.className = 'time-grid';
+        const gutter = document.createElement('div');
+        gutter.className = 'time-gutter-col';
+        for (let h = 0; h < 24; h++) {
+          const slot = document.createElement('div');
+          slot.className = 'time-slot';
+          slot.textContent = formatHourLabel(h);
+          gutter.appendChild(slot);
+        }
+        timeGrid.appendChild(gutter);
+        timeGrid.appendChild(weekColumns);
+        grid.appendChild(timeGrid);
         const end = addDays(start, 6);
         document.getElementById('calDateLabel').textContent = formatShortDate(start) + ' – ' + formatShortDate(end);
       } else if (calendarMode === 'day') {
         const dateStr = toISODate(calendarDate);
-        grid.className = 'calendar-day-view';
+        grid.className = 'calendar-time-view day-view';
         const header = document.createElement('div');
-        header.className = 'day-header';
-        header.textContent = DAY_NAMES[calendarDate.getDay()] + ', ' + formatShortDate(calendarDate);
+        header.className = 'time-view-header';
+        header.innerHTML = '<div class="time-gutter"></div><div class="day-header-cell"><span class="day-name">' + DAY_NAMES[calendarDate.getDay()] + '</span><span class="day-date">' + calendarDate.getDate() + '</span></div>';
         grid.appendChild(header);
-        const dayTasks = getDayTasks(dateStr, visibleTasks);
-        if (dayTasks.length === 0) {
-          const empty = document.createElement('p');
-          empty.className = 'empty';
-          empty.textContent = 'No tasks for this day.';
-          grid.appendChild(empty);
-        } else {
-          dayTasks.forEach(task => {
-            const time = getDisplayTime(task, dateStr);
-            const el = document.createElement('div');
-            el.className = 'day-task';
-            el.innerHTML = '<strong>' + escapeHtml(task.title) + '</strong>' +
-              (time ? '<br><span style="color:var(--muted);font-size:12px">' + time + '</span>' : '') +
-              '<br><span class="badge priority-' + task.priority.toLowerCase() + '">' + task.priority + '</span>';
-            el.addEventListener('click', () => openTask(task.id));
-            grid.appendChild(el);
-          });
+        const ranges = getDayTaskRanges(dateStr, visibleTasks);
+        const hasAllDay = ranges.some(r => r.allDay);
+        if (hasAllDay) {
+          const allDayRow = document.createElement('div');
+          allDayRow.className = 'all-day-row';
+          allDayRow.innerHTML = '<div class="all-day-label">All day</div><div class="all-day-cells"><div class="all-day-cell"></div></div>';
+          const allDayCell = allDayRow.querySelector('.all-day-cell');
+          ranges.forEach(r => { if (r.allDay) allDayCell.appendChild(createTimeEvent(r.task, r.startMins, r.endMins, true)); });
+          grid.appendChild(allDayRow);
         }
+        const dayCol = document.createElement('div');
+        dayCol.className = 'day-column';
+        for (let h = 0; h < 24; h++) {
+          const row = document.createElement('div');
+          row.className = 'hour-row';
+          dayCol.appendChild(row);
+        }
+        ranges.forEach(r => { if (!r.allDay) dayCol.appendChild(createTimeEvent(r.task, r.startMins, r.endMins, false)); });
+        const timeGrid = document.createElement('div');
+        timeGrid.className = 'time-grid';
+        const gutter = document.createElement('div');
+        gutter.className = 'time-gutter-col';
+        for (let h = 0; h < 24; h++) {
+          const slot = document.createElement('div');
+          slot.className = 'time-slot';
+          slot.textContent = formatHourLabel(h);
+          gutter.appendChild(slot);
+        }
+        timeGrid.appendChild(gutter);
+        timeGrid.appendChild(dayCol);
+        grid.appendChild(timeGrid);
         document.getElementById('calDateLabel').textContent = formatShortDate(calendarDate);
       }
     }
