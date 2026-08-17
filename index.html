@@ -62,6 +62,8 @@
     .space-name { font-weight: 700; font-size: 11.5px; color: var(--muted); padding: 6px 0; text-transform: uppercase; letter-spacing: 0.06em; }
     .space-add-btn { width: 22px; height: 22px; padding: 0; border: none; border-radius: 6px; background: transparent; color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, color 0.15s; }
     .space-add-btn:hover { background: var(--primary-light); color: var(--primary); }
+    .student-section { margin-bottom: 22px; }
+    .student-header { font-size: 12px; font-weight: 700; color: var(--primary); padding: 10px 8px; margin: 0 0 8px; background: var(--primary-light); border-radius: var(--radius-sm); text-transform: uppercase; letter-spacing: 0.04em; }
     .tree-folder { margin-left: 4px; }
     .folder-row { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: var(--radius-sm); color: var(--text); font-size: 13.5px; font-weight: 500; position: relative; transition: background 0.12s; }
     .folder-row:hover, .folder-row.active { background: var(--bg); }
@@ -115,7 +117,7 @@
 
     .modal-overlay { position: fixed; inset: 0; background: rgba(17,20,29,0.5); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
     .modal-overlay.active { display: flex; }
-    .modal { background: var(--card); border-radius: var(--radius-lg); width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+    .modal { background: var(--card); border-radius: var(--radius-lg); width: 100%; max-width: 620px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
     .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
     .modal-header h3 { margin: 0; font-size: 16px; font-weight: 700; }
     .modal-body { padding: 22px 24px; }
@@ -201,6 +203,14 @@
     .dropdown-item:hover { background: var(--primary-light); color: var(--primary-dark); }
     .dropdown-item.danger { color: #ef4444; }
     .dropdown-item.danger:hover { background: #fee2e2; color: #b91c1c; }
+    .field-section { margin-bottom: 24px; }
+    .field-section:last-child { margin-bottom: 0; }
+    .section-title { font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 12px; padding-left: 8px; border-left: 3px solid var(--primary); }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field-row .field { margin-bottom: 0; }
+    #tTitle { font-size: 15px; font-weight: 600; }
+    .field select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3e%3cpath fill='%236b7280' d='M6 9L1 4h10z'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+    @media (max-width: 540px) { .field-row { grid-template-columns: 1fr; } }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
@@ -280,49 +290,67 @@
         <button class="close" id="closeModal" aria-label="Close">&times;</button>
       </div>
       <form id="taskForm" class="modal-body">
-        <div class="field">
-          <label for="tTitle">Title</label>
-          <input id="tTitle" required>
+        <div class="field-section">
+          <div class="section-title">Task Details</div>
+          <div class="field">
+            <label for="tTitle">Title</label>
+            <input id="tTitle" required>
+          </div>
+          <div class="field">
+            <label for="tList">List</label>
+            <select id="tList"></select>
+          </div>
+          <div class="field">
+            <label for="tDesc">Description</label>
+            <textarea id="tDesc" rows="3"></textarea>
+          </div>
         </div>
-        <div class="field">
-          <label for="tList">List</label>
-          <select id="tList"></select>
+        <div class="field-section">
+          <div class="section-title">Properties</div>
+          <div class="field-row">
+            <div class="field">
+              <label for="tStatus">Status</label>
+              <select id="tStatus"></select>
+            </div>
+            <div class="field">
+              <label for="tPriority">Priority</label>
+              <select id="tPriority"></select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="tAssignee">Assignee</label>
+            <select id="tAssignee"></select>
+          </div>
         </div>
-        <div class="field">
-          <label for="tStatus">Status</label>
-          <select id="tStatus"></select>
+        <div class="field-section">
+          <div class="section-title">Schedule</div>
+          <div class="field-row">
+            <div class="field">
+              <label for="tStartDate">Start Date</label>
+              <input id="tStartDate" type="text" data-picker="date" placeholder="YYYY-MM-DD" readonly>
+            </div>
+            <div class="field">
+              <label for="tStartTime">Start Time</label>
+              <input id="tStartTime" type="text" data-picker="time" placeholder="HH:MM" readonly>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="tDueDate">Due Date</label>
+              <input id="tDueDate" type="text" data-picker="date" placeholder="YYYY-MM-DD" readonly>
+            </div>
+            <div class="field">
+              <label for="tDueTime">Due Time</label>
+              <input id="tDueTime" type="text" data-picker="time" placeholder="HH:MM" readonly>
+            </div>
+          </div>
         </div>
-        <div class="field">
-          <label for="tAssignee">Assignee</label>
-          <select id="tAssignee"></select>
-        </div>
-        <div class="field">
-          <label for="tPriority">Priority</label>
-          <select id="tPriority"></select>
-        </div>
-        <div class="field">
-          <label for="tStartDate">Start Date</label>
-          <input id="tStartDate" type="text" data-picker="date" placeholder="YYYY-MM-DD" readonly>
-        </div>
-        <div class="field">
-          <label for="tStartTime">Start Time</label>
-          <input id="tStartTime" type="text" data-picker="time" placeholder="HH:MM" readonly>
-        </div>
-        <div class="field">
-          <label for="tDueDate">Due Date</label>
-          <input id="tDueDate" type="text" data-picker="date" placeholder="YYYY-MM-DD" readonly>
-        </div>
-        <div class="field">
-          <label for="tDueTime">Due Time</label>
-          <input id="tDueTime" type="text" data-picker="time" placeholder="HH:MM" readonly>
-        </div>
-        <div class="field">
-          <label for="tDesc">Description</label>
-          <textarea id="tDesc" rows="3"></textarea>
-        </div>
-        <div class="field">
-          <label for="tNotes">Notes</label>
-          <textarea id="tNotes" rows="4" placeholder="Add notes, observations, or lesson feedback here..."></textarea>
+        <div class="field-section">
+          <div class="section-title">Notes</div>
+          <div class="field">
+            <label for="tNotes">Notes</label>
+            <textarea id="tNotes" rows="4" placeholder="Add notes, observations, or lesson feedback here..."></textarea>
+          </div>
         </div>
       </form>
       <div class="modal-footer">
@@ -603,38 +631,53 @@
       }
     }
 
-    function getTaskCount(listId) {
-      return tasks.filter(t => t.listId === listId).length;
+    function getTaskCount(listId, assigneeEmail) {
+      return tasks.filter(t => t.listId === listId && (!assigneeEmail || t.assignee === assigneeEmail)).length;
     }
 
     function renderSidebar() {
       const tree = document.getElementById('sidebarTree');
       tree.innerHTML = '';
-      spaces.forEach(space => {
-        const spaceEl = document.createElement('div');
-        spaceEl.className = 'tree-space';
-        const header = document.createElement('div');
-        header.className = 'space-header';
-        header.innerHTML = '<div class="space-name">' + escapeHtml(space.name) + '</div>';
-        if (currentUser.role === 'manager') {
-          const addBtn = document.createElement('button');
-          addBtn.type = 'button';
-          addBtn.className = 'space-add-btn';
-          addBtn.innerHTML = '&#43;';
-          addBtn.title = 'Add folder to ' + space.name;
-          addBtn.addEventListener('click', () => promptAddFolderToSpace(space.id));
-          header.appendChild(addBtn);
+      const isManager = currentUser && currentUser.role === 'manager';
+      const studentEntries = isManager
+        ? Object.entries(userMap).filter(([_, u]) => u.role === 'student').map(([email, u]) => ({ name: u.name, email }))
+        : [{ name: currentUser.name, email: currentUser.email }];
+      studentEntries.forEach(({ name, email }) => {
+        const section = document.createElement('div');
+        section.className = 'student-section';
+        if (isManager) {
+          const studentHeader = document.createElement('div');
+          studentHeader.className = 'student-header';
+          studentHeader.textContent = name;
+          section.appendChild(studentHeader);
         }
-        spaceEl.appendChild(header);
-        const folderContainer = document.createElement('div');
-        folderContainer.className = 'tree-folders';
-        (space.folders || []).forEach(folder => renderFolder(folder, folderContainer));
-        spaceEl.appendChild(folderContainer);
-        tree.appendChild(spaceEl);
+        spaces.forEach(space => {
+          const spaceEl = document.createElement('div');
+          spaceEl.className = 'tree-space';
+          const spaceHeader = document.createElement('div');
+          spaceHeader.className = 'space-header';
+          spaceHeader.innerHTML = '<div class="space-name">' + escapeHtml(space.name) + '</div>';
+          if (isManager) {
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'space-add-btn';
+            addBtn.innerHTML = '&#43;';
+            addBtn.title = 'Add folder to ' + space.name;
+            addBtn.addEventListener('click', () => promptAddFolderToSpace(space.id));
+            spaceHeader.appendChild(addBtn);
+          }
+          spaceEl.appendChild(spaceHeader);
+          const folderContainer = document.createElement('div');
+          folderContainer.className = 'tree-folders';
+          (space.folders || []).forEach(folder => renderFolder(folder, folderContainer, email));
+          spaceEl.appendChild(folderContainer);
+          section.appendChild(spaceEl);
+        });
+        tree.appendChild(section);
       });
     }
 
-    function renderFolder(folder, parentEl) {
+    function renderFolder(folder, parentEl, assigneeEmail) {
       const isOpen = expandedFolders.has(folder.id);
       const folderEl = document.createElement('div');
       folderEl.className = 'tree-folder';
@@ -661,7 +704,7 @@
       body.className = 'folder-body' + (isOpen ? ' open' : '');
       const childFolders = document.createElement('div');
       childFolders.className = 'folder-children';
-      (folder.folders || []).forEach(sub => renderFolder(sub, childFolders));
+      (folder.folders || []).forEach(sub => renderFolder(sub, childFolders, assigneeEmail));
       body.appendChild(childFolders);
 
       const listContainer = document.createElement('div');
@@ -670,7 +713,7 @@
         const listRow = document.createElement('div');
         listRow.className = 'list-row' + (activeListId === list.id ? ' active' : '');
         listRow.innerHTML = '<span class="list-name">' + escapeHtml(list.name) + '</span>' +
-          '<span class="count">' + getTaskCount(list.id) + '</span>';
+          '<span class="count">' + getTaskCount(list.id, assigneeEmail) + '</span>';
         if (currentUser.role === 'manager') {
           const menuBtn = document.createElement('button');
           menuBtn.type = 'button';
