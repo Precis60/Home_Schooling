@@ -427,6 +427,8 @@
     .task.dragging { opacity: 0.4; transform: rotate(2deg); }
     .column.drag-over { background: var(--primary-light); border: 2px dashed var(--primary); }
     .column { transition: var(--transition); }
+    .task-move-mobile { display: none; margin-top: 8px; }
+    .task-move-mobile .move-select { width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--card); color: var(--text); }
 
     /* Search */
     .search-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; z-index: 200; padding-top: 80px; }
@@ -641,18 +643,95 @@
     .mobile-nav button.active { color: var(--primary); background: var(--primary-light); }
     .mobile-nav button .nav-icon { font-size: 18px; }
 
+    /* Mobile sidebar toggle button (hidden on desktop) */
+    .sidebar-toggle { display: none; background: transparent; border: none; color: var(--text); font-size: 22px; padding: 4px 8px; border-radius: 8px; cursor: pointer; align-items: center; justify-content: center; flex-shrink: 0; }
+    .sidebar-toggle:active { background: var(--bg-secondary); }
+    .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.5); z-index: 90; }
+
     @media (max-width: 768px) {
-      .sidebar { display: none; }
+      /* Sidebar becomes a slide-in drawer */
+      .sidebar { display: flex; position: fixed; top: 0; left: 0; bottom: 0; width: 280px; z-index: 100; transform: translateX(-100%); transition: transform 0.25s ease; box-shadow: var(--shadow-xl); }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-backdrop.open { display: block; }
       .app.active { flex-direction: column; }
-      .main { padding-bottom: 60px; }
+      .main { padding-bottom: 64px; }
       .mobile-nav { display: flex; }
-      .header { padding: 12px 16px; }
-      .view-switcher { font-size: 11px; }
-      .view-switcher button { padding: 5px 10px; }
-      .meta .quick-add, .meta #searchBtn { display: none !important; }
-      .dashboard, .board, .list-view, .gantt-view, .calendar { padding: 16px; }
+      .sidebar-toggle { display: flex; }
+
+      /* Header: stack vertically, allow wrapping */
+      .header { padding: 10px 14px; flex-direction: column; align-items: stretch; gap: 8px; }
+      .header > div:first-child { display: flex; align-items: center; gap: 8px; }
+      .header h2 { font-size: 17px; }
+      .breadcrumb { font-size: 12px; }
+
+      /* View switcher: horizontal scroll */
+      .view-switcher { display: flex; gap: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; font-size: 11px; padding-bottom: 2px; }
+      .view-switcher::-webkit-scrollbar { display: none; }
+      .view-switcher button { padding: 5px 10px; white-space: nowrap; flex-shrink: 0; }
+      .view-sep { flex-shrink: 0; }
+
+      /* Meta bar: wrap and show quick-add/search */
+      .meta { flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+      .meta .quick-add { display: flex !important; flex: 1 1 100%; order: 99; }
+      .meta .quick-add-input { width: 100%; }
+      .meta #searchBtn { display: flex !important; }
+      .meta button { padding: 6px 10px; font-size: 12px; }
+      .meta #userLabel { font-size: 12px; }
+
+      /* Content areas */
+      .dashboard, .board, .list-view, .gantt-view, .calendar { padding: 14px; }
       .columns { grid-template-columns: 1fr; }
-      .filter-bar { padding: 8px 16px; overflow-x: auto; }
+      .filter-bar { padding: 8px 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+      /* Always show menu buttons on touch (no hover) */
+      .folder-row .menu-btn, .list-row .menu-btn { opacity: 1 !important; color: var(--text-secondary); }
+
+      /* Filter dropdowns: open downward on mobile to avoid clipping */
+      .filter-dropdown-menu { bottom: auto; top: 100%; margin-bottom: 0; margin-top: 8px; }
+
+      /* Modal: full-width, scrollable tabs */
+      .modal-overlay { padding: 0; }
+      .modal { max-width: 100%; width: 100%; max-height: 100vh; border-radius: 0; }
+      .modal-header { padding: 14px 16px; }
+      .modal-body { padding: 16px; }
+      .modal-footer { padding: 14px 16px; flex-wrap: wrap; }
+      .modal-tabs { padding: 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .modal-tabs::-webkit-scrollbar { display: none; }
+      .modal-tab { padding: 10px 14px; white-space: nowrap; flex-shrink: 0; }
+
+      /* Always show delete buttons on touch */
+      .subtask-item .subtask-del, .comment-item .comment-del { opacity: 0.5; }
+      .subtask-item .subtask-del:active, .comment-item .comment-del:active { opacity: 1; }
+
+      /* List table: horizontal scroll wrapper */
+      #listTableWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .list-table { min-width: 600px; }
+
+      /* Calendar: smaller cells, scrollable */
+      .calendar-grid { grid-template-columns: 1fr; }
+      .calendar-week { grid-template-columns: 1fr; }
+      .calendar-cell { min-height: 60px; }
+
+      /* Board columns: stack vertically, tap to move */
+      .columns { grid-template-columns: 1fr; gap: 12px; }
+      .column { min-height: auto; }
+      .task-move-mobile { display: block; }
+
+      /* Dashboard cards: single column */
+      .dash-grid { grid-template-columns: 1fr !important; }
+
+      /* Touch targets: minimum 40px */
+      .btn, .btn-sm { min-height: 40px; }
+      .menu-btn { width: 36px; height: 36px; }
+      .day-cell { min-width: 36px; min-height: 36px; }
+      .attendance-btn { padding: 8px 16px; font-size: 12px; }
+
+      /* Mobile nav: slightly larger touch targets */
+      .mobile-nav button { padding: 8px 12px; min-height: 44px; }
+
+      /* Forms: full width fields */
+      .field-row { grid-template-columns: 1fr; }
+      .field select, .field input, .field textarea { font-size: 16px; } /* prevent iOS zoom */
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -681,7 +760,8 @@
   </div>
 
   <div id="app" class="app">
-    <aside class="sidebar">
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
         <button id="dashboardBtn" class="dashboard-btn">Dashboard</button>
       </div>
@@ -694,6 +774,7 @@
     <main class="main">
       <header class="header">
         <div>
+          <button class="sidebar-toggle" id="sidebarToggle" aria-label="Open menu">&#9776;</button>
           <h2 id="pageTitle">Dashboard</h2>
           <div class="breadcrumb" id="pageBreadcrumb">Mathematics / Term One 2026 Lessons</div>
           <div class="view-switcher" id="viewSwitcher">
@@ -1722,6 +1803,20 @@
       document.querySelectorAll('.menu-btn.active').forEach(b => b.classList.remove('active'));
     }
 
+    // Mobile sidebar drawer
+    function openMobileSidebar() {
+      const sb = document.getElementById('sidebar');
+      const bd = document.getElementById('sidebarBackdrop');
+      if (sb) sb.classList.add('open');
+      if (bd) bd.classList.add('open');
+    }
+    function closeMobileSidebar() {
+      const sb = document.getElementById('sidebar');
+      const bd = document.getElementById('sidebarBackdrop');
+      if (sb) sb.classList.remove('open');
+      if (bd) bd.classList.remove('open');
+    }
+
     function toggleDropdown(btn, type, id, isManager) {
       if (btn.classList.contains('active')) {
         closeAllDropdowns();
@@ -1778,6 +1873,7 @@
         document.getElementById('pageBreadcrumb').textContent = path;
       }
       switchView('list');
+      closeMobileSidebar();
     }
 
     function toISODate(d) {
@@ -1950,14 +2046,33 @@
               '<span>Assignee: ' + (userMap[task.assignee]?.name || task.assignee) + '</span>' +
               '<span>Due: ' + formatDateTime(task.dueDate, task.dueTime) + '</span>' +
               '<span><span class="badge ' + priorityClass + '">' + task.priority + '</span>' + repeatBadge + (task.notes ? ' &bull; Notes' : '') + subtaskInfo + '</span>' +
-              '</div>';
-            el.addEventListener('click', () => openTask(task.id));
+              '</div>' +
+              '<div class="task-move-mobile"><select class="move-select" aria-label="Move to status"><option value="">Move\u2026</option>' +
+              statuses.map(s => '<option value="' + escapeHtml(s) + '"' + (s === task.status ? ' disabled' : '') + '>' + escapeHtml(s) + '</option>').join('') +
+              '</select></div>';
+            el.addEventListener('click', e => { if (e.target.closest('.move-select')) return; openTask(task.id); });
             el.addEventListener('dragstart', e => {
               el.classList.add('dragging');
               e.dataTransfer.setData('text/plain', task.id);
               e.dataTransfer.effectAllowed = 'move';
             });
             el.addEventListener('dragend', () => { el.classList.remove('dragging'); });
+            const moveSel = el.querySelector('.move-select');
+            if (moveSel) {
+              moveSel.addEventListener('change', e => {
+                e.stopPropagation();
+                const newStatus = e.target.value;
+                if (!newStatus || newStatus === task.status) return;
+                const editable = currentUser.role === 'manager' || (task.assignees && task.assignees.includes(currentUser.email));
+                if (!editable) { renderBoard(); return; }
+                task.status = newStatus;
+                addActivity(task, 'status changed to ' + newStatus + ' via move menu');
+                saveTasks();
+                syncTaskToSupabase(task);
+                renderBoard();
+                renderSidebar();
+              });
+            }
             list.appendChild(el);
           });
         }
@@ -3734,6 +3849,10 @@
     document.getElementById('addFolderBtn').addEventListener('click', promptAddFolder);
     document.getElementById('addListBtn').addEventListener('click', promptAddList);
 
+    // Mobile sidebar toggle
+    document.getElementById('sidebarToggle').addEventListener('click', openMobileSidebar);
+    document.getElementById('sidebarBackdrop').addEventListener('click', closeMobileSidebar);
+
     document.getElementById('viewBoard').addEventListener('click', () => switchView('board'));
     document.getElementById('viewList').addEventListener('click', () => switchView('list'));
     document.getElementById('viewGantt').addEventListener('click', () => switchView('gantt'));
@@ -3741,7 +3860,7 @@
     document.getElementById('viewWorkload').addEventListener('click', () => switchView('workload'));
     document.getElementById('viewGoals').addEventListener('click', () => switchView('goals'));
     document.getElementById('viewDashboard').addEventListener('click', () => switchView('dashboard'));
-    document.getElementById('dashboardBtn').addEventListener('click', () => switchView('dashboard'));
+    document.getElementById('dashboardBtn').addEventListener('click', () => { switchView('dashboard'); closeMobileSidebar(); });
     document.getElementById('viewCalendar').addEventListener('click', () => switchView('calendar'));
     document.getElementById('calDay').addEventListener('click', () => setCalendarMode('day'));
     document.getElementById('calWeek').addEventListener('click', () => setCalendarMode('week'));
