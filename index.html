@@ -458,7 +458,15 @@
 
     function generateId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
-    async function loadSpaces() {
+    function loadSpaces() {
+      const raw = localStorage.getItem(SPACE_KEY);
+      spaces = raw ? JSON.parse(raw) : seedSpaces();
+      if (!raw) saveSpaces();
+      else migrateSpaces();
+      syncSpacesFromSupabase();
+    }
+
+    async function syncSpacesFromSupabase() {
       try {
         const { data: rows, error } = await supabase.from('spaces').select('*').eq('id', 'main');
         if (error) throw error;
@@ -466,17 +474,11 @@
           spaces = rows[0].data;
           localStorage.setItem(SPACE_KEY, JSON.stringify(spaces));
           migrateSpaces();
-          return;
+          if (currentUser) { renderSidebar(); if (activeListId) selectList(activeListId); }
+        } else {
+          saveSpaces();
         }
-        spaces = seedSpaces();
-        saveSpaces();
-      } catch (err) {
-        console.error('Supabase loadSpaces failed', err);
-        const raw = localStorage.getItem(SPACE_KEY);
-        spaces = raw ? JSON.parse(raw) : seedSpaces();
-        if (!raw) saveSpaces();
-        else migrateSpaces();
-      }
+      } catch (err) { console.error('Supabase sync spaces failed', err); }
     }
 
     function migrateSpaces() {
@@ -511,32 +513,35 @@
       return arr;
     }
 
-    async function loadTasks() {
+    function loadTasks() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      let arr = raw ? JSON.parse(raw) : seedTasks();
+      migrateTaskFields(arr);
+      tasks = arr;
+      saveTasks();
+      syncTasksFromSupabase();
+    }
+
+    async function syncTasksFromSupabase() {
       try {
         const { data: rows, error } = await supabase.from('tasks').select('*');
         if (error) throw error;
-        let arr = [];
         if (rows && rows.length) {
-          arr = rows.map(row => {
+          const arr = rows.map(row => {
             const d = (row && row.data) || {};
             return { ...d, id: d.id || row.id };
           }).filter(t => t.id);
+          migrateTaskFields(arr);
+          tasks = arr;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+          if (currentUser) {
+            renderSidebar();
+            if (currentView === 'board') renderBoard(); else if (currentView === 'calendar') renderCalendar();
+          }
+        } else {
+          saveTasks();
         }
-        if (!arr.length) {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          arr = raw ? JSON.parse(raw) : seedTasks();
-        }
-        migrateTaskFields(arr);
-        tasks = arr;
-        saveTasks();
-      } catch (err) {
-        console.error('Supabase loadTasks failed', err);
-        const raw = localStorage.getItem(STORAGE_KEY);
-        let arr = raw ? JSON.parse(raw) : seedTasks();
-        migrateTaskFields(arr);
-        tasks = arr;
-        saveTasks();
-      }
+      } catch (err) { console.error('Supabase sync tasks failed', err); }
     }
 
     function saveTasks() {
@@ -1216,7 +1221,7 @@
       renderCalendar();
     }
 
-    document.getElementById('loginForm').addEventListener('submit', async e => {
+    document.getElementById('loginForm').addEventListener('submit', e => {
       e.preventDefault();
       const u = document.getElementById('username').value.trim().toLowerCase();
       const p = document.getElementById('password').value;
@@ -1224,8 +1229,8 @@
         currentUser = { ...users[u], username: u };
         localStorage.setItem(USER_KEY, currentUser.username);
         document.getElementById('loginError').style.display = 'none';
-        await loadSpaces();
-        await loadTasks();
+        loadSpaces();
+        loadTasks();
         setViews();
         if (!activeListId) {
           activeListId = 'pe-t3';
@@ -1435,9 +1440,9 @@
     document.getElementById('tStartTime').addEventListener('click', () => openTimePicker(document.getElementById('tStartTime')));
     document.getElementById('tDueTime').addEventListener('click', () => openTimePicker(document.getElementById('tDueTime')));
 
-    async function init() {
-      await loadSpaces();
-      await loadTasks();
+    function init() {
+      loadSpaces();
+      loadTasks();
       const saved = localStorage.getItem(USER_KEY);
       if (saved && users[saved]) {
         currentUser = { ...users[saved], username: saved };
