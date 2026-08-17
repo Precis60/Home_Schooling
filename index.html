@@ -1882,7 +1882,9 @@
     document.getElementById('calToday').addEventListener('click', () => { calendarDate = new Date(); renderCalendar(); });
 
     window.addEventListener('click', e => {
-      closeAllDropdowns();
+      if (!e.target.closest('.menu-btn') && !e.target.closest('.dropdown-menu')) {
+        closeAllDropdowns();
+      }
       if (e.target.id === 'modal') closeModal();
       if (e.target.id === 'datePickerModal') closeDatePicker();
       if (e.target.id === 'timePickerModal') closeTimePicker();
