@@ -562,17 +562,19 @@
     function getStudentSpaces(email) {
       if (!spacesByStudent[email]) {
         const studentName = userMap[email] ? userMap[email].name : null;
-        spacesByStudent[email] = seedSpaces(studentName);
+        spacesByStudent[email] = seedSpaces(studentName, email);
       }
       return spacesByStudent[email];
     }
 
-    function seedSpaces(studentName) {
+    function seedSpaces(studentName, email) {
       const sportingName = studentName ? studentName + "'s Activities" : 'Sporting Activities';
+      const isEmily = email === 'emily@projects-consultant.com';
+      const homeSchoolName = isEmily ? 'Homework' : 'Home Schooling';
       return [
         {
           id: 'home-school-' + Math.random().toString(36).slice(2, 8),
-          name: 'Home Schooling',
+          name: homeSchoolName,
           folders: [
             {
               id: generateId(), name: 'Mathematics', folders: [], lists: [
@@ -664,7 +666,7 @@
       }
       Object.keys(userMap).forEach(email => {
         if (userMap[email].role === 'student' && !spacesByStudent[email]) {
-          spacesByStudent[email] = seedSpaces(userMap[email].name);
+          spacesByStudent[email] = seedSpaces(userMap[email].name, email);
         }
       });
       migrateSpaces();
@@ -690,8 +692,10 @@
     function migrateSpaces() {
       Object.entries(spacesByStudent).forEach(([email, spaces]) => {
         const studentName = userMap[email] ? userMap[email].name : null;
+        const isEmily = email === 'emily@projects-consultant.com';
         spaces.forEach(s => {
-          if (s.name === 'Home School') s.name = 'Home Schooling';
+          if (isEmily && (s.name === 'Home School' || s.name === 'Home Schooling')) s.name = 'Homework';
+          if (!isEmily && s.name === 'Home School') s.name = 'Home Schooling';
           if (s.name === 'Sporting Activities' && studentName) s.name = studentName + "'s Activities";
         });
         function walk(folders) {
