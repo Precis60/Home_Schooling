@@ -1260,19 +1260,41 @@
 
     function seedTasks() {
       const today = new Date().toISOString().split('T')[0];
-      const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const lucasSpaces = getStudentSpaces('lucas@projects-consultant.com');
-      const emilySpaces = getStudentSpaces('emily@projects-consultant.com');
-      const lucasMathList = lucasSpaces[0].folders[0].lists[0].id;
-      const lucasPEList = lucasSpaces[0].folders[1].lists[0].id;
-      const lucasSportList = lucasSpaces[1].folders[0].lists[0].id;
-      const emilySportList = emilySpaces[1].folders[0].lists[1].id;
-      return [
-        { id: generateId(), title: 'Math worksheet', listId: lucasMathList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' },
-        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: lucasPEList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
-        { id: generateId(), title: 'Daily 5k run', listId: lucasSportList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' },
-        { id: generateId(), title: 'Stretching routine', listId: emilySportList, status: 'Completed', assignee: 'emily@projects-consultant.com', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' }
-      ];
+      const lucasSpaces = getStudentSpaces('lucas@projects-consultant.com') || [];
+      const emilySpaces = getStudentSpaces('emily@projects-consultant.com') || [];
+
+      // Defensively find the first list matching a name hint, falling back to
+      // the very first list available anywhere in the student's spaces. This
+      // avoids crashing if the folder/list structure has since been customized
+      // (e.g. subfolders added/removed/reordered).
+      function findAnyList(spaces, nameHint) {
+        const allLists = [];
+        (spaces || []).forEach(space => {
+          (function walk(folders) {
+            (folders || []).forEach(folder => {
+              (folder.lists || []).forEach(list => allLists.push(list));
+              walk(folder.folders);
+            });
+          })(space.folders);
+        });
+        if (nameHint) {
+          const match = allLists.find(l => l.name && l.name.toLowerCase().includes(nameHint.toLowerCase()));
+          if (match) return match.id;
+        }
+        return allLists[0] ? allLists[0].id : null;
+      }
+
+      const lucasMathList = findAnyList(lucasSpaces, 'math');
+      const lucasPEList = findAnyList(lucasSpaces, 'physical');
+      const lucasSportList = findAnyList(lucasSpaces, 'sport');
+      const emilySportList = findAnyList(emilySpaces, 'stretch') || findAnyList(emilySpaces, 'sport');
+
+      const result = [];
+      if (lucasMathList) result.push({ id: generateId(), title: 'Math worksheet', listId: lucasMathList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' });
+      if (lucasPEList) result.push({ id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: lucasPEList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' });
+      if (lucasSportList) result.push({ id: generateId(), title: 'Daily 5k run', listId: lucasSportList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' });
+      if (emilySportList) result.push({ id: generateId(), title: 'Stretching routine', listId: emilySportList, status: 'Completed', assignee: 'emily@projects-consultant.com', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' });
+      return result;
     }
 
     function generateId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
@@ -1398,11 +1420,24 @@
 
     async function loadTasks() {
       const raw = localStorage.getItem(STORAGE_KEY);
-      let arr = raw ? JSON.parse(raw) : seedTasks();
+      let arr = raw ? JSON.parse(raw) : [];
       migrateTaskFields(arr);
       tasks = arr;
-      saveTasks();
       await syncTasksFromSupabase();
+      if (!tasks || tasks.length === 0) {
+        // Truly no data anywhere (brand new install) - seed sample tasks.
+        try {
+          tasks = seedTasks();
+          migrateTaskFields(tasks);
+        } catch (err) {
+          console.error('seedTasks failed, starting with no tasks', err);
+          tasks = [];
+        }
+        saveTasks();
+        tasks.forEach(t => syncTaskToSupabase(t));
+      } else {
+        saveTasks();
+      }
     }
 
     async function syncTasksFromSupabase() {
@@ -1421,18 +1456,14 @@
             renderSidebar();
             render();
           }
-        } else {
-          // No rows from Supabase — keep existing/seed data and push it up
+        } else if (tasks && tasks.length) {
+          // No rows in Supabase yet, but we have local tasks (e.g. pre-existing
+          // localStorage data) - push them up so other devices can see them.
           saveTasks();
           tasks.forEach(t => syncTaskToSupabase(t));
         }
       } catch (err) {
         console.error('Supabase sync tasks failed', err);
-        // If Supabase fails, fall back to localStorage/seed data
-        // and try to push seed data to Supabase for manager
-        if (currentUser && currentUser.role === 'manager') {
-          tasks.forEach(t => syncTaskToSupabase(t));
-        }
       }
     }
 
