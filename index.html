@@ -1467,7 +1467,16 @@
       const { data, error } = await supabaseClient.functions.invoke('manage-student-account', {
         body: { currentEmail, newEmail, newPassword, name: newName }
       });
-      if (error) throw new Error(error.message || 'Failed to update account.');
+      if (error) {
+        let detail = error.message || 'Failed to update account.';
+        if (error.context && typeof error.context.json === 'function') {
+          try {
+            const body = await error.context.json();
+            if (body && body.error) detail = body.error;
+          } catch (e) { /* response body wasn't JSON or already consumed */ }
+        }
+        throw new Error(detail);
+      }
       if (data && data.error) throw new Error(data.error);
 
       const finalEmail = (data && data.email) || newEmail;
