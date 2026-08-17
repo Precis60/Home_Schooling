@@ -352,7 +352,7 @@
     <main class="main">
       <header class="header">
         <div>
-          <h2 id="pageTitle">Home School</h2>
+          <h2 id="pageTitle">Dashboard</h2>
           <div class="breadcrumb" id="pageBreadcrumb">Mathematics / Term One 2026 Lessons</div>
           <div class="view-switcher" id="viewSwitcher">
             <button type="button" id="viewDashboard" class="active">Dashboard</button>
@@ -560,15 +560,19 @@
     }
 
     function getStudentSpaces(email) {
-      if (!spacesByStudent[email]) spacesByStudent[email] = seedSpaces();
+      if (!spacesByStudent[email]) {
+        const studentName = userMap[email] ? userMap[email].name : null;
+        spacesByStudent[email] = seedSpaces(studentName);
+      }
       return spacesByStudent[email];
     }
 
-    function seedSpaces() {
+    function seedSpaces(studentName) {
+      const sportingName = studentName ? studentName + "'s Activities" : 'Sporting Activities';
       return [
         {
           id: 'home-school-' + Math.random().toString(36).slice(2, 8),
-          name: 'Home School',
+          name: 'Home Schooling',
           folders: [
             {
               id: generateId(), name: 'Mathematics', folders: [], lists: [
@@ -612,7 +616,7 @@
         },
         {
           id: 'sporting-' + Math.random().toString(36).slice(2, 8),
-          name: 'Sporting Activities',
+          name: sportingName,
           folders: [
             {
               id: generateId(), name: 'Physical Education', folders: [], lists: [
@@ -660,7 +664,7 @@
       }
       Object.keys(userMap).forEach(email => {
         if (userMap[email].role === 'student' && !spacesByStudent[email]) {
-          spacesByStudent[email] = seedSpaces();
+          spacesByStudent[email] = seedSpaces(userMap[email].name);
         }
       });
       migrateSpaces();
@@ -684,7 +688,12 @@
     }
 
     function migrateSpaces() {
-      Object.values(spacesByStudent).forEach(spaces => {
+      Object.entries(spacesByStudent).forEach(([email, spaces]) => {
+        const studentName = userMap[email] ? userMap[email].name : null;
+        spaces.forEach(s => {
+          if (s.name === 'Home School') s.name = 'Home Schooling';
+          if (s.name === 'Sporting Activities' && studentName) s.name = studentName + "'s Activities";
+        });
         function walk(folders) {
           (folders || []).forEach(f => {
             if (!Array.isArray(f.folders)) f.folders = [];
@@ -694,6 +703,7 @@
         }
         spaces.forEach(s => walk(s.folders));
       });
+      saveSpaces();
     }
 
     function saveSpaces() {
@@ -899,12 +909,6 @@
       studentEntries.forEach(({ name, email }) => {
         const section = document.createElement('div');
         section.className = 'student-section';
-        if (isManager) {
-          const studentHeader = document.createElement('div');
-          studentHeader.className = 'student-header';
-          studentHeader.textContent = name;
-          section.appendChild(studentHeader);
-        }
         const spaces = getStudentSpaces(email);
         spaces.forEach(space => {
           const spaceEl = document.createElement('div');
