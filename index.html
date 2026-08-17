@@ -130,7 +130,7 @@
     .calendar.active { display: flex; flex-direction: column; }
     #calendarGrid { flex: 1; min-height: 0; overflow-y: auto; }
     #calendarGrid.month-view { overflow-y: hidden; overflow-x: auto; }
-    .filter-bar { background: var(--card); border-top: 1px solid var(--border); padding: 12px 28px; display: none; gap: 28px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+    .filter-bar { background: var(--card); border-top: 1px solid var(--border); padding: 10px 28px; display: none; gap: 28px; align-items: center; flex-wrap: wrap; font-size: 13px; flex-shrink: 0; max-height: 120px; overflow-y: auto; }
     .filter-bar.active { display: flex; }
     .filter-bar .filter-group { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
     .filter-bar .filter-group strong { font-weight: 600; color: var(--text); margin-right: 4px; }
@@ -708,9 +708,11 @@
         document.getElementById('addTaskBtn').classList.toggle('hidden', currentUser.role !== 'manager');
         document.getElementById('addFolderBtn').classList.toggle('hidden', currentUser.role !== 'manager');
         document.getElementById('addListBtn').classList.toggle('hidden', currentUser.role !== 'manager');
+        renderFilterBar();
       } else {
         document.getElementById('login').style.display = 'flex';
         document.getElementById('app').classList.remove('active');
+        renderFilterBar();
       }
     }
 
@@ -1414,7 +1416,7 @@
 
     function renderFilterBar() {
       const bar = document.getElementById('filterBar');
-      if (!currentUser || (currentView !== 'board' && currentView !== 'calendar')) {
+      if (!currentUser) {
         bar.classList.remove('active');
         return;
       }
