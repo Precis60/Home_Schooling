@@ -185,6 +185,7 @@
     .dropdown-item.danger { color: #ef4444; }
     .dropdown-item.danger:hover { background: #fee2e2; color: #b91c1c; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -371,6 +372,7 @@
     const USER_KEY = 'hst_user';
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const supabase = window.supabase.createClient('https://zbmktdoivzlapmaccwvh.supabase.co', 'sb_publishable_W3BXowc4pBBP_o2VCL_EhQ_-0q80ssj');
 
     let currentUser = null;
     let activeListId = null;
@@ -456,11 +458,25 @@
 
     function generateId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
-    function loadSpaces() {
-      const raw = localStorage.getItem(SPACE_KEY);
-      spaces = raw ? JSON.parse(raw) : seedSpaces();
-      if (!raw) saveSpaces();
-      else migrateSpaces();
+    async function loadSpaces() {
+      try {
+        const { data: rows, error } = await supabase.from('spaces').select('*').eq('id', 'main');
+        if (error) throw error;
+        if (rows && rows.length && rows[0].data && Array.isArray(rows[0].data)) {
+          spaces = rows[0].data;
+          localStorage.setItem(SPACE_KEY, JSON.stringify(spaces));
+          migrateSpaces();
+          return;
+        }
+        spaces = seedSpaces();
+        saveSpaces();
+      } catch (err) {
+        console.error('Supabase loadSpaces failed', err);
+        const raw = localStorage.getItem(SPACE_KEY);
+        spaces = raw ? JSON.parse(raw) : seedSpaces();
+        if (!raw) saveSpaces();
+        else migrateSpaces();
+      }
     }
 
     function migrateSpaces() {
@@ -475,11 +491,12 @@
       saveSpaces();
     }
 
-    function saveSpaces() { localStorage.setItem(SPACE_KEY, JSON.stringify(spaces)); }
+    function saveSpaces() {
+      localStorage.setItem(SPACE_KEY, JSON.stringify(spaces));
+      supabase.from('spaces').upsert({ id: 'main', data: spaces }).catch(console.error);
+    }
 
-    function loadTasks() {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      let arr = raw ? JSON.parse(raw) : seedTasks();
+    function migrateTaskFields(arr) {
       arr.forEach(t => {
         if (t.due && !t.dueDate) { t.dueDate = t.due; t.dueTime = ''; }
         if (t.due !== undefined) delete t.due;
@@ -491,11 +508,42 @@
         if (t.desc === undefined) t.desc = '';
         if (t.notes === undefined) t.notes = '';
       });
-      tasks = arr;
-      saveTasks();
+      return arr;
     }
 
-    function saveTasks() { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+    async function loadTasks() {
+      try {
+        const { data: rows, error } = await supabase.from('tasks').select('*');
+        if (error) throw error;
+        let arr = [];
+        if (rows && rows.length) {
+          arr = rows.map(row => {
+            const d = (row && row.data) || {};
+            return { ...d, id: d.id || row.id };
+          }).filter(t => t.id);
+        }
+        if (!arr.length) {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          arr = raw ? JSON.parse(raw) : seedTasks();
+        }
+        migrateTaskFields(arr);
+        tasks = arr;
+        saveTasks();
+      } catch (err) {
+        console.error('Supabase loadTasks failed', err);
+        const raw = localStorage.getItem(STORAGE_KEY);
+        let arr = raw ? JSON.parse(raw) : seedTasks();
+        migrateTaskFields(arr);
+        tasks = arr;
+        saveTasks();
+      }
+    }
+
+    function saveTasks() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      const payload = tasks.map(t => ({ id: t.id, data: t }));
+      supabase.from('tasks').upsert(payload).catch(console.error);
+    }
 
     function findList(listId) {
       for (const space of spaces) {
@@ -1168,7 +1216,7 @@
       renderCalendar();
     }
 
-    document.getElementById('loginForm').addEventListener('submit', e => {
+    document.getElementById('loginForm').addEventListener('submit', async e => {
       e.preventDefault();
       const u = document.getElementById('username').value.trim().toLowerCase();
       const p = document.getElementById('password').value;
@@ -1176,8 +1224,8 @@
         currentUser = { ...users[u], username: u };
         localStorage.setItem(USER_KEY, currentUser.username);
         document.getElementById('loginError').style.display = 'none';
-        loadSpaces();
-        loadTasks();
+        await loadSpaces();
+        await loadTasks();
         setViews();
         if (!activeListId) {
           activeListId = 'pe-t3';
@@ -1387,9 +1435,9 @@
     document.getElementById('tStartTime').addEventListener('click', () => openTimePicker(document.getElementById('tStartTime')));
     document.getElementById('tDueTime').addEventListener('click', () => openTimePicker(document.getElementById('tDueTime')));
 
-    function init() {
-      loadSpaces();
-      loadTasks();
+    async function init() {
+      await loadSpaces();
+      await loadTasks();
       const saved = localStorage.getItem(USER_KEY);
       if (saved && users[saved]) {
         currentUser = { ...users[saved], username: saved };
