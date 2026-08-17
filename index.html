@@ -2887,17 +2887,17 @@
 
     function findFolder(folderId) {
       for (const space of getAllSpaces()) {
-        const res = findFolderIn(space.folders, [], space, space.folders);
+        const res = findFolderIn(space.folders, [], space, space.folders, folderId);
         if (res) return res;
       }
       return null;
     }
 
-    function findFolderIn(folders, ancestors, space, parent) {
+    function findFolderIn(folders, ancestors, space, parent, folderId) {
       for (let i = 0; i < folders.length; i++) {
         const f = folders[i];
         if (f.id === folderId) return { space, parent, folder: f, ancestors: [...ancestors] };
-        const res = findFolderIn(f.folders, [...ancestors, f], space, f.folders);
+        const res = findFolderIn(f.folders, [...ancestors, f], space, f.folders, folderId);
         if (res) return res;
       }
       return null;
