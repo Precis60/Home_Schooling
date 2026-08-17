@@ -137,6 +137,8 @@
     .calendar-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
     .calendar-toolbar .group { display: flex; align-items: center; gap: 8px; }
     .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(120px, max-content); gap: 10px; align-content: start; }
+    .month-view { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; }
+    .month-panel { flex: 0 0 100%; padding-right: 20px; scroll-snap-align: start; }
     .calendar-day { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; min-height: 120px; transition: box-shadow 0.15s; }
     .calendar-day .day-label { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
     .calendar-day .day-tasks { display: flex; flex-direction: column; gap: 6px; }
@@ -1502,27 +1504,37 @@
       const visibleTasks = getVisibleCalendarTasks();
 
       if (calendarMode === 'month') {
-        const startOfMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
-        const gridStart = startOfWeek(startOfMonth);
-        grid.className = 'calendar-grid';
-        for (let i = 0; i < 42; i++) {
-          const d = addDays(gridStart, i);
-          const dateStr = toISODate(d);
-          const isCurrentMonth = d.getMonth() === calendarDate.getMonth();
-          const cell = document.createElement('div');
-          cell.className = 'calendar-day' + (isCurrentMonth ? '' : ' calendar-other-month');
-          cell.innerHTML = '<div class="day-label">' + DAY_NAMES[d.getDay()] + ' ' + d.getDate() + '</div>';
-          const taskList = document.createElement('div');
-          taskList.className = 'day-tasks';
-          const dayTasks = getDayTasks(dateStr, visibleTasks);
-          if (dayTasks.length === 0) {
-            taskList.innerHTML = '<span style="color:#9ca3af;font-size:11px">No tasks</span>';
-          } else {
-            dayTasks.forEach(task => taskList.appendChild(createCalendarTask(task, dateStr)));
+        grid.className = 'month-view';
+        const months = [addMonths(calendarDate, -1), calendarDate, addMonths(calendarDate, 1)];
+        months.forEach((m, idx) => {
+          const panel = document.createElement('div');
+          panel.className = 'month-panel';
+          const monthGrid = document.createElement('div');
+          monthGrid.className = 'calendar-grid';
+          const startOfMonth = new Date(m.getFullYear(), m.getMonth(), 1);
+          const gridStart = startOfWeek(startOfMonth);
+          for (let i = 0; i < 42; i++) {
+            const d = addDays(gridStart, i);
+            const dateStr = toISODate(d);
+            const isCurrentMonth = d.getMonth() === m.getMonth();
+            const cell = document.createElement('div');
+            cell.className = 'calendar-day' + (isCurrentMonth ? '' : ' calendar-other-month');
+            cell.innerHTML = '<div class="day-label">' + DAY_NAMES[d.getDay()] + ' ' + d.getDate() + '</div>';
+            const taskList = document.createElement('div');
+            taskList.className = 'day-tasks';
+            const dayTasks = getDayTasks(dateStr, visibleTasks);
+            if (dayTasks.length === 0) {
+              taskList.innerHTML = '<span style="color:#9ca3af;font-size:11px">No tasks</span>';
+            } else {
+              dayTasks.forEach(task => taskList.appendChild(createCalendarTask(task, dateStr)));
+            }
+            cell.appendChild(taskList);
+            monthGrid.appendChild(cell);
           }
-          cell.appendChild(taskList);
-          grid.appendChild(cell);
-        }
+          panel.appendChild(monthGrid);
+          grid.appendChild(panel);
+        });
+        setTimeout(() => { grid.scrollLeft = grid.clientWidth + 20; }, 0);
         document.getElementById('calDateLabel').textContent = MONTH_NAMES[calendarDate.getMonth()] + ' ' + calendarDate.getFullYear();
       } else if (calendarMode === 'week') {
         const start = startOfWeek(calendarDate);
