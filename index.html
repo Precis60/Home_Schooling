@@ -673,6 +673,39 @@
       return lists;
     }
 
+    function getAllFolders() {
+      const folders = [];
+      function walk(fs, parent) {
+        (fs || []).forEach(folder => {
+          folders.push({ id: folder.id, name: folder.name, parentId: parent });
+          walk(folder.folders, folder.id);
+        });
+      }
+      spaces.forEach(space => walk(space.folders, null));
+      return folders;
+    }
+
+    function getTopLevelFolders() {
+      return getAllFolders().filter(f => f.parentId === null);
+    }
+
+    function getListFolderId(listId) {
+      function walk(folders) {
+        for (const folder of (folders || [])) {
+          if ((folder.lists || []).some(l => l.id === listId)) return folder.id;
+          const found = walk(folder.folders);
+          if (found) return found;
+        }
+        return null;
+      }
+      for (const space of spaces) {
+        if ((space.lists || []).some(l => l.id === listId)) return null;
+        const found = walk(space.folders);
+        if (found) return found;
+      }
+      return null;
+    }
+
     let _listColorCache = null;
     function buildListColorCache() {
       const keys = new Set();
@@ -1408,10 +1441,15 @@
       return visible;
     }
 
-    const filterHidden = { students: new Set(), lists: new Set() };
+    const filterHidden = { students: new Set(), folders: new Set() };
 
     function getFilteredTasks() {
-      return tasks.filter(t => !filterHidden.students.has(t.assignee) && !filterHidden.lists.has(t.listId));
+      return tasks.filter(t => {
+        if (filterHidden.students.has(t.assignee)) return false;
+        const folderId = getListFolderId(t.listId);
+        if (folderId && filterHidden.folders.has(folderId)) return false;
+        return true;
+      });
     }
 
     function renderFilterBar() {
@@ -1439,17 +1477,17 @@
         studentGroup.appendChild(label);
       });
       listGroup.innerHTML = '<strong>Categories:</strong>';
-      getAllLists().forEach(list => {
+      getTopLevelFolders().forEach(folder => {
         const label = document.createElement('label');
         const cb = document.createElement('input');
         cb.type = 'checkbox';
-        cb.checked = !filterHidden.lists.has(list.id);
+        cb.checked = !filterHidden.folders.has(folder.id);
         cb.addEventListener('change', () => {
-          if (cb.checked) filterHidden.lists.delete(list.id); else filterHidden.lists.add(list.id);
+          if (cb.checked) filterHidden.folders.delete(folder.id); else filterHidden.folders.add(folder.id);
           render();
         });
         label.appendChild(cb);
-        label.appendChild(document.createTextNode(list.name));
+        label.appendChild(document.createTextNode(folder.name));
         listGroup.appendChild(label);
       });
     }
