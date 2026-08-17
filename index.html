@@ -194,8 +194,8 @@
       <p>Log in to manage home schooling and sports training.</p>
       <form id="loginForm">
         <div class="field">
-          <label for="username">Username</label>
-          <input id="username" name="username" placeholder="manager, student1, student2" required>
+          <label for="username">Email</label>
+          <input id="username" name="username" placeholder="Enter email" required>
         </div>
         <div class="field">
           <label for="password">Password</label>
@@ -360,11 +360,12 @@
   </div>
 
   <script>
-    const users = {
-      manager: { name: 'Jamie Anderson', password: 'manager', role: 'manager' },
-      student1: { name: 'Lucas Anderson', password: 'student1', role: 'student' },
-      student2: { name: 'Emily Anderson', password: 'student2', role: 'student' }
+    const userMap = {
+      'jamie@projects-consultant.com': { name: 'Jamie Anderson', role: 'manager' },
+      'lucas@projects-consultsant.com': { name: 'Lucas Anderson', role: 'student' },
+      'emily@projects-consultant.com': { name: 'Emily Anderson', role: 'student' }
     };
+    const legacyToEmail = { manager: 'jamie@projects-consultant.com', student1: 'lucas@projects-consultsant.com', student2: 'emily@projects-consultant.com' };
     const statuses = ['Planned', 'Delayed', 'In Progress', 'Cancelled', 'Completed'];
     const priorities = ['Low', 'Medium', 'High', 'Optional'];
     const STORAGE_KEY = 'hst_tasks';
@@ -495,11 +496,18 @@
 
     function saveSpaces() {
       localStorage.setItem(SPACE_KEY, JSON.stringify(spaces));
-      Promise.resolve(supabaseClient.from('spaces').upsert({ id: 'main', data: spaces })).catch(console.error);
+    }
+
+    async function syncSpacesToSupabase() {
+      try {
+        const { error } = await supabaseClient.from('spaces').upsert({ id: 'main', data: spaces });
+        if (error) throw error;
+      } catch (err) { console.error('Supabase spaces sync failed', err); }
     }
 
     function migrateTaskFields(arr) {
       arr.forEach(t => {
+        if (t.assignee && legacyToEmail[t.assignee]) t.assignee = legacyToEmail[t.assignee];
         if (t.due && !t.dueDate) { t.dueDate = t.due; t.dueTime = ''; }
         if (t.due !== undefined) delete t.due;
         if (!t.startDate && t.dueDate) t.startDate = t.dueDate;
@@ -546,8 +554,6 @@
 
     function saveTasks() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-      const payload = tasks.map(t => ({ id: t.id, data: t }));
-      Promise.resolve(supabaseClient.from('tasks').upsert(payload)).catch(console.error);
     }
 
     function findList(listId) {
@@ -776,7 +782,7 @@
             const priorityClass = 'priority-' + task.priority.toLowerCase();
             el.innerHTML = '<div class="task-title">' + escapeHtml(task.title) + '</div>' +
               '<div class="task-meta">' +
-              '<span>Assignee: ' + (users[task.assignee]?.name || task.assignee) + '</span>' +
+              '<span>Assignee: ' + (userMap[task.assignee]?.name || task.assignee) + '</span>' +
               '<span>Due: ' + formatDateTime(task.dueDate, task.dueTime) + '</span>' +
               '<span><span class="badge ' + priorityClass + '">' + task.priority + '</span>' + (task.notes ? ' &bull; Notes' : '') + '</span>' +
               '</div>';
@@ -810,14 +816,15 @@
     function openTask(id) {
       const task = id ? tasks.find(t => t.id === id) : null;
       const isManager = currentUser.role === 'manager';
-      const editable = isManager || !task || task.assignee === currentUser.username;
+      const editable = isManager || (task && task.assignee === currentUser.email);
       document.getElementById('modalTitle').textContent = task ? 'Edit Task' : 'New Task';
       document.getElementById('deleteTaskBtn').classList.toggle('hidden', !isManager || !task);
       document.getElementById('printNotesBtn').classList.toggle('hidden', !task);
 
+      const studentOptions = Object.entries(userMap).filter(([email,u]) => u.role === 'student').map(([email,u]) => ({value: email, label: u.name}));
       fillSelect('tList', buildListOptions(), task ? task.listId : activeListId);
       fillSelect('tStatus', statuses, (task && statuses.includes(task.status)) ? task.status : 'Planned');
-      fillSelect('tAssignee', Object.entries(users).filter(([k,u]) => u.role === 'student').map(([k,u]) => ({value:k, label:u.name})), task ? task.assignee : 'student1');
+      fillSelect('tAssignee', studentOptions, task ? task.assignee : (studentOptions[0] && studentOptions[0].value));
       fillSelect('tPriority', priorities, (task && priorities.includes(task.priority)) ? task.priority : 'Medium');
 
       document.getElementById('tTitle').value = task ? task.title : '';
@@ -856,6 +863,9 @@
 
     function saveTask() {
       const id = document.getElementById('modal').dataset.id;
+      const task = id ? tasks.find(t => t.id === id) : null;
+      const editable = currentUser.role === 'manager' || (task && task.assignee === currentUser.email);
+      if (!editable) { closeModal(); return; }
       const values = {
         title: document.getElementById('tTitle').value.trim(),
         listId: document.getElementById('tList').value,
@@ -871,22 +881,29 @@
       };
       if (!values.title) { alert('Title is required'); return; }
 
+      let updated;
       if (id) {
         const idx = tasks.findIndex(t => t.id === id);
         if (idx !== -1) {
           if (currentUser.role === 'manager') {
-            values.id = id;
-            tasks[idx] = values;
+            updated = { ...values, id: id };
+            tasks[idx] = updated;
           } else {
             tasks[idx].status = values.status;
             tasks[idx].notes = values.notes;
+            updated = tasks[idx];
           }
         }
       } else if (currentUser.role === 'manager') {
-        values.id = generateId();
-        tasks.push(values);
+        updated = { ...values, id: generateId() };
+        tasks.push(updated);
+      } else {
+        closeModal(); return;
       }
       saveTasks();
+      if (updated) {
+        Promise.resolve(supabaseClient.from('tasks').upsert({ id: updated.id, data: updated })).catch(err => console.error('Supabase task sync failed', err));
+      }
       renderSidebar();
       render();
       closeModal();
@@ -894,9 +911,13 @@
 
     function deleteTask() {
       const id = document.getElementById('modal').dataset.id;
-      if (id && confirm('Delete this task?')) {
+      const task = tasks.find(t => t.id === id);
+      if (!id || !task) return;
+      if (currentUser.role !== 'manager' && task.assignee !== currentUser.email) return;
+      if (confirm('Delete this task?')) {
         tasks = tasks.filter(t => t.id !== id);
         saveTasks();
+        Promise.resolve(supabaseClient.from('tasks').delete().eq('id', id)).catch(err => console.error('Supabase task delete failed', err));
         renderSidebar();
         render();
         closeModal();
@@ -912,7 +933,7 @@
         (found ? escapeHtml(found.space.name + ' / ' + found.folder.name + ' / ' + found.list.name) + ' &bull; ' : '') +
         'Status: ' + escapeHtml(task.status) + ' &bull; ' +
         'Priority: ' + escapeHtml(task.priority) + ' &bull; ' +
-        'Assignee: ' + (users[task.assignee]?.name || task.assignee) + '<br>' +
+        'Assignee: ' + (userMap[task.assignee]?.name || task.assignee) + '<br>' +
         'Start: ' + formatDateTime(task.startDate, task.startTime) + '<br>' +
         'Due: ' + formatDateTime(task.dueDate, task.dueTime) +
         '</div>' +
@@ -950,6 +971,7 @@
       const id = generateId();
       space.folders.push({ id, name: name.trim(), folders: [], lists: [] });
       saveSpaces();
+      syncSpacesToSupabase();
       expandedFolders.add(id);
       renderSidebar();
     }
@@ -963,6 +985,7 @@
       found.folder.folders.push({ id, name: name.trim(), folders: [], lists: [] });
       expandedFolders.add(id);
       saveSpaces();
+      syncSpacesToSupabase();
       renderSidebar();
     }
 
@@ -977,6 +1000,7 @@
       if (!name) return;
       found.folder.lists.push({ id: generateId(), name: name.trim() });
       saveSpaces();
+      syncSpacesToSupabase();
       renderSidebar();
     }
 
@@ -987,6 +1011,7 @@
       if (!name) return;
       found.folder.lists.push({ id: generateId(), name: name.trim() });
       saveSpaces();
+      syncSpacesToSupabase();
       renderSidebar();
     }
 
@@ -994,14 +1019,14 @@
       const found = findFolder(folderId);
       if (!found) return;
       const name = prompt('Rename folder:', found.folder.name);
-      if (name) { found.folder.name = name.trim(); saveSpaces(); renderSidebar(); }
+      if (name) { found.folder.name = name.trim(); saveSpaces(); syncSpacesToSupabase(); renderSidebar(); }
     }
 
     function renameList(listId) {
       const found = findList(listId);
       if (!found) return;
       const name = prompt('Rename list:', found.list.name);
-      if (name) { found.list.name = name.trim(); saveSpaces(); renderSidebar(); }
+      if (name) { found.list.name = name.trim(); saveSpaces(); syncSpacesToSupabase(); renderSidebar(); }
     }
 
     function deleteFolder(folderId) {
@@ -1009,11 +1034,16 @@
       if (!found) return;
       if (!confirm('Delete folder "' + found.folder.name + '" and all its lists?')) return;
       const listIds = collectListIds(found.folder);
+      const deletedTaskIds = tasks.filter(t => listIds.has(t.listId)).map(t => t.id);
       const idx = found.parent.findIndex(f => f.id === folderId);
       if (idx !== -1) found.parent.splice(idx, 1);
       tasks = tasks.filter(t => !listIds.has(t.listId));
       saveSpaces();
+      syncSpacesToSupabase();
       saveTasks();
+      if (deletedTaskIds.length) {
+        Promise.resolve(supabaseClient.from('tasks').delete().in('id', deletedTaskIds)).catch(err => console.error('Supabase task delete failed', err));
+      }
       expandedFolders.delete(folderId);
       if (activeListId && listIds.has(activeListId)) {
         activeListId = null;
@@ -1030,9 +1060,14 @@
       if (!confirm('Delete list "' + found.list.name + '"?')) return;
       const idx = found.folder.lists.findIndex(l => l.id === listId);
       if (idx !== -1) found.folder.lists.splice(idx, 1);
+      const deletedTaskIds = tasks.filter(t => t.listId === listId).map(t => t.id);
       tasks = tasks.filter(t => t.listId !== listId);
       saveSpaces();
+      syncSpacesToSupabase();
       saveTasks();
+      if (deletedTaskIds.length) {
+        Promise.resolve(supabaseClient.from('tasks').delete().in('id', deletedTaskIds)).catch(err => console.error('Supabase task delete failed', err));
+      }
       if (activeListId === listId) {
         activeListId = null;
         document.getElementById('pageTitle').textContent = 'Select a list';
@@ -1088,7 +1123,7 @@
     }
 
     function getVisibleCalendarTasks() {
-      return tasks.filter(t => currentUser.role === 'manager' || t.assignee === currentUser.username);
+      return tasks.filter(t => currentUser.role === 'manager' || t.assignee === currentUser.email);
     }
 
     function getDisplayDate(task) {
@@ -1221,31 +1256,35 @@
       renderCalendar();
     }
 
-    document.getElementById('loginForm').addEventListener('submit', e => {
+    document.getElementById('loginForm').addEventListener('submit', async e => {
       e.preventDefault();
-      const u = document.getElementById('username').value.trim().toLowerCase();
-      const p = document.getElementById('password').value;
-      if (users[u] && users[u].password === p) {
-        currentUser = { ...users[u], username: u };
-        localStorage.setItem(USER_KEY, currentUser.username);
-        document.getElementById('loginError').style.display = 'none';
-        loadSpaces();
-        loadTasks();
-        setViews();
-        if (!activeListId) {
-          activeListId = 'pe-t3';
-          expandedFolders.add('pe');
-        }
-        renderSidebar();
-        selectList(activeListId);
-      } else {
+      const email = document.getElementById('username').value.trim().toLowerCase();
+      const password = document.getElementById('password').value;
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error || !data.user || !userMap[email]) {
         document.getElementById('loginError').style.display = 'block';
+        return;
       }
+      currentUser = { ...data.user, name: userMap[email].name, role: userMap[email].role, email };
+      document.getElementById('loginError').style.display = 'none';
+      loadSpaces();
+      loadTasks();
+      setViews();
+      if (!activeListId) {
+        activeListId = 'pe-t3';
+        expandedFolders.add('pe');
+      }
+      renderSidebar();
+      selectList(activeListId);
     });
 
-    document.getElementById('logoutBtn').addEventListener('click', () => {
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
       currentUser = null;
-      localStorage.removeItem(USER_KEY);
+      activeListId = null;
+      expandedFolders.clear();
+      currentView = 'board';
+      calendarMode = 'month';
       setViews();
     });
 
@@ -1440,21 +1479,22 @@
     document.getElementById('tStartTime').addEventListener('click', () => openTimePicker(document.getElementById('tStartTime')));
     document.getElementById('tDueTime').addEventListener('click', () => openTimePicker(document.getElementById('tDueTime')));
 
-    function init() {
-      loadSpaces();
-      loadTasks();
-      const saved = localStorage.getItem(USER_KEY);
-      if (saved && users[saved]) {
-        currentUser = { ...users[saved], username: saved };
-      }
-      setViews();
-      if (currentUser) {
+    async function init() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const email = session && session.user ? (session.user.email || '').toLowerCase() : '';
+      if (email && userMap[email]) {
+        currentUser = { ...session.user, name: userMap[email].name, role: userMap[email].role, email };
+        setViews();
+        loadSpaces();
+        loadTasks();
         if (!activeListId) {
           activeListId = 'pe-t3';
           expandedFolders.add('pe');
         }
         renderSidebar();
         selectList(activeListId);
+      } else {
+        setViews();
       }
     }
 
