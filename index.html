@@ -2213,7 +2213,14 @@
     function buildCategoryOptions(spaceId) {
       const space = getAllSpaces().find(s => s.id === spaceId);
       if (!space) return [];
-      return (space.folders || []).map(f => ({ value: f.id, label: f.name }));
+      const options = [];
+      (function walk(folders, depth) {
+        (folders || []).forEach(f => {
+          options.push({ value: f.id, label: (depth > 0 ? '\u2014 '.repeat(depth) : '') + f.name });
+          walk(f.folders, depth + 1);
+        });
+      })(space.folders, 0);
+      return options;
     }
 
     function buildListOptionsForCategory(spaceId, folderId) {
