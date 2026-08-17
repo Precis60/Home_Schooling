@@ -1771,7 +1771,7 @@
       });
     }
 
-    function toggleDropdown(btnId, menuId) {
+    function toggleFilterDropdown(btnId, menuId) {
       const menu = document.getElementById(menuId);
       const isOpen = menu.classList.contains('open');
       document.querySelectorAll('.filter-dropdown-menu').forEach(m => m.classList.remove('open'));
@@ -2028,9 +2028,9 @@
     });
 
     document.getElementById('addTaskBtn').addEventListener('click', () => openTask(null));
-    document.getElementById('spaceDropdownBtn').addEventListener('click', () => toggleDropdown('spaceDropdownBtn', 'spaceDropdownMenu'));
-    document.getElementById('studentDropdownBtn').addEventListener('click', () => toggleDropdown('studentDropdownBtn', 'studentDropdownMenu'));
-    document.getElementById('categoryDropdownBtn').addEventListener('click', () => toggleDropdown('categoryDropdownBtn', 'categoryDropdownMenu'));
+    document.getElementById('spaceDropdownBtn').addEventListener('click', () => toggleFilterDropdown('spaceDropdownBtn', 'spaceDropdownMenu'));
+    document.getElementById('studentDropdownBtn').addEventListener('click', () => toggleFilterDropdown('studentDropdownBtn', 'studentDropdownMenu'));
+    document.getElementById('categoryDropdownBtn').addEventListener('click', () => toggleFilterDropdown('categoryDropdownBtn', 'categoryDropdownMenu'));
     document.getElementById('closeModal').addEventListener('click', closeModal);
     document.getElementById('cancelModal').addEventListener('click', closeModal);
     document.getElementById('saveTaskBtn').addEventListener('click', saveTask);
