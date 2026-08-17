@@ -125,6 +125,15 @@
     .calendar-nav { display: none; align-items: center; gap: 10px; }
     .date-label { font-size: 14px; font-weight: 700; min-width: 120px; text-align: center; color: var(--text); }
 
+    /* Settings */
+    .settings-row { border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 18px; margin-bottom: 14px; }
+    .settings-row h4 { margin: 0 0 14px; font-size: 14px; font-weight: 700; }
+    .settings-row .field-row { margin-bottom: 12px; }
+    .settings-row .settings-msg { font-size: 12.5px; margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-sm); display: none; }
+    .settings-row .settings-msg.success { display: block; background: var(--success-light); color: #065f46; }
+    .settings-row .settings-msg.error { display: block; background: var(--danger-light); color: #b91c1c; }
+    .settings-row .settings-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+
     /* Dashboard */
     .dashboard-btn { border: none; background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%); color: #fff; font-size: 16px; font-weight: 700; padding: 10px 20px; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); width: 100%; text-align: left; letter-spacing: -0.01em; }
     .dashboard-btn:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
@@ -373,6 +382,7 @@
         </div>
         <div class="meta">
           <button id="addTaskBtn" class="btn btn-sm hidden" title="New Event">+ New Event</button>
+          <button id="settingsBtn" class="btn btn-sm btn-ghost hidden" title="Settings">Settings</button>
           <span id="userLabel">User</span>
           <button id="logoutBtn" class="btn">Log Out</button>
         </div>
@@ -493,6 +503,22 @@
 
   <div id="printArea" class="pdf-preview" style="display:none"></div>
 
+  <div id="settingsModal" class="modal-overlay">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header">
+        <h3>Student Accounts</h3>
+        <button class="close" id="closeSettings" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin:0 0 18px;color:var(--muted);font-size:13px">Update a student's name, login email, or password. Changes are applied to Supabase immediately.</p>
+        <div id="settingsList"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="closeSettingsBtn" type="button" class="btn btn-ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div id="datePickerModal" class="modal-overlay">
     <div class="modal picker-modal">
       <div class="picker-header">
@@ -530,11 +556,27 @@
   </div>
 
   <script>
-    const userMap = {
+    const MANAGER_EMAIL = 'jamie@projects-consultant.com';
+    const DEFAULT_USER_MAP = {
       'jamie@projects-consultant.com': { name: 'Jamie Anderson', role: 'manager' },
       'jamie@precisioncabling.com.au': { name: 'Lucas Anderson', role: 'student' },
       'admin@precisioncabling.com.au': { name: 'Emily Anderson', role: 'student' }
     };
+    let userMap = { ...DEFAULT_USER_MAP };
+
+    async function loadUserDirectory() {
+      try {
+        const { data: rows, error } = await supabaseClient.from('hs_users').select('*').eq('id', 'main');
+        if (error) throw error;
+        if (rows && rows.length && rows[0].data && typeof rows[0].data === 'object') {
+          const merged = { [MANAGER_EMAIL]: DEFAULT_USER_MAP[MANAGER_EMAIL] };
+          Object.entries(rows[0].data).forEach(([email, info]) => {
+            merged[email] = { name: info.name, role: info.role || 'student' };
+          });
+          userMap = merged;
+        }
+      } catch (err) { console.error('Failed to load user directory', err); }
+    }
     const legacyToEmail = { manager: 'jamie@projects-consultant.com', student1: 'jamie@precisioncabling.com.au', student2: 'admin@precisioncabling.com.au', 'lucas@projects-consultant.com': 'jamie@precisioncabling.com.au', 'emily@projects-consultant.com': 'admin@precisioncabling.com.au' };
     const statuses = ['Planned', 'Delayed', 'In Progress', 'Cancelled', 'Completed'];
     const priorities = ['Low', 'Medium', 'High', 'Optional'];
@@ -884,6 +926,7 @@
         document.getElementById('addTaskBtn').classList.toggle('hidden', currentUser.role !== 'manager');
         document.getElementById('addFolderBtn').classList.toggle('hidden', currentUser.role !== 'manager');
         document.getElementById('addListBtn').classList.toggle('hidden', currentUser.role !== 'manager');
+        document.getElementById('settingsBtn').classList.toggle('hidden', currentUser.role !== 'manager');
         renderFilterBar();
       } else {
         document.getElementById('login').style.display = 'flex';
@@ -1353,6 +1396,84 @@
     }
 
     function closeModal() { document.getElementById('modal').classList.remove('active'); }
+
+    function openSettings() {
+      renderSettings();
+      document.getElementById('settingsModal').classList.add('active');
+    }
+
+    function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
+
+    function renderSettings() {
+      const list = document.getElementById('settingsList');
+      list.innerHTML = '';
+      const students = Object.entries(userMap).filter(([_, u]) => u.role === 'student');
+      students.forEach(([email, u]) => {
+        const row = document.createElement('div');
+        row.className = 'settings-row';
+        row.innerHTML =
+          '<h4>' + escapeHtml(u.name) + '</h4>' +
+          '<div class="field-row">' +
+            '<div class="field"><label>Name</label><input class="s-name" value="' + escapeHtml(u.name) + '"></div>' +
+            '<div class="field"><label>Login Email</label><input class="s-email" type="email" value="' + escapeHtml(email) + '"></div>' +
+          '</div>' +
+          '<div class="field"><label>New Password (leave blank to keep current)</label><input class="s-password" type="password" placeholder="At least 6 characters"></div>' +
+          '<div class="settings-msg"></div>' +
+          '<div class="settings-actions"><button type="button" class="btn btn-sm s-save">Save Changes</button></div>';
+        const saveBtn = row.querySelector('.s-save');
+        const msg = row.querySelector('.settings-msg');
+        saveBtn.addEventListener('click', async () => {
+          const newName = row.querySelector('.s-name').value.trim();
+          const newEmail = row.querySelector('.s-email').value.trim().toLowerCase();
+          const newPassword = row.querySelector('.s-password').value;
+          msg.className = 'settings-msg';
+          if (!newName || !newEmail) { msg.textContent = 'Name and email are required.'; msg.classList.add('error'); return; }
+          if (newPassword && newPassword.length < 6) { msg.textContent = 'Password must be at least 6 characters.'; msg.classList.add('error'); return; }
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Saving...';
+          try {
+            await saveStudentAccount(email, newEmail, newName, newPassword);
+            msg.textContent = 'Saved successfully.';
+            msg.classList.add('success');
+            row.querySelector('.s-password').value = '';
+            renderSidebar();
+            renderFilterBar();
+            render();
+          } catch (err) {
+            msg.textContent = err.message || 'Failed to save changes.';
+            msg.classList.add('error');
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Changes';
+          }
+        });
+        list.appendChild(row);
+      });
+    }
+
+    async function saveStudentAccount(currentEmail, newEmail, newName, newPassword) {
+      const { data, error } = await supabaseClient.functions.invoke('manage-student-account', {
+        body: { currentEmail, newEmail, newPassword, name: newName }
+      });
+      if (error) throw new Error(error.message || 'Failed to update account.');
+      if (data && data.error) throw new Error(data.error);
+
+      const finalEmail = (data && data.email) || newEmail;
+      if (finalEmail !== currentEmail) {
+        delete userMap[currentEmail];
+        if (spacesByStudent[currentEmail]) {
+          spacesByStudent[finalEmail] = spacesByStudent[currentEmail];
+          delete spacesByStudent[currentEmail];
+          saveSpaces();
+        }
+        tasks.forEach(t => { if (t.assignee === currentEmail) t.assignee = finalEmail; });
+        saveTasks();
+        if (currentUser && currentUser.email === currentEmail) currentUser.email = finalEmail;
+      }
+      userMap[finalEmail] = { name: newName, role: 'student' };
+      await syncSpacesFromSupabase();
+      await syncTasksFromSupabase();
+    }
 
     function saveTask() {
       const id = document.getElementById('modal').dataset.id;
@@ -2036,8 +2157,14 @@
       const email = document.getElementById('username').value.trim().toLowerCase();
       const password = document.getElementById('password').value;
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error || !data.user || !userMap[email]) {
+      if (error || !data.user) {
         document.getElementById('loginError').style.display = 'block';
+        return;
+      }
+      await loadUserDirectory();
+      if (!userMap[email]) {
+        document.getElementById('loginError').style.display = 'block';
+        await supabaseClient.auth.signOut();
         return;
       }
       currentUser = { ...data.user, name: userMap[email].name, role: userMap[email].role, email };
@@ -2060,6 +2187,9 @@
     });
 
     document.getElementById('addTaskBtn').addEventListener('click', () => openTask(null));
+    document.getElementById('settingsBtn').addEventListener('click', openSettings);
+    document.getElementById('closeSettings').addEventListener('click', closeSettings);
+    document.getElementById('closeSettingsBtn').addEventListener('click', closeSettings);
     document.getElementById('spaceDropdownBtn').addEventListener('click', () => toggleFilterDropdown('spaceDropdownBtn', 'spaceDropdownMenu'));
     document.getElementById('studentDropdownBtn').addEventListener('click', () => toggleFilterDropdown('studentDropdownBtn', 'studentDropdownMenu'));
     document.getElementById('categoryDropdownBtn').addEventListener('click', () => toggleFilterDropdown('categoryDropdownBtn', 'categoryDropdownMenu'));
@@ -2088,6 +2218,7 @@
       if (e.target.id === 'modal') closeModal();
       if (e.target.id === 'datePickerModal') closeDatePicker();
       if (e.target.id === 'timePickerModal') closeTimePicker();
+      if (e.target.id === 'settingsModal') closeSettings();
     });
 
     document.addEventListener('keydown', e => {
@@ -2264,6 +2395,9 @@
     async function init() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       const email = session && session.user ? (session.user.email || '').toLowerCase() : '';
+      if (email) {
+        await loadUserDirectory();
+      }
       if (email && userMap[email]) {
         currentUser = { ...session.user, name: userMap[email].name, role: userMap[email].role, email };
         supabaseClient.auth.refreshSession().catch(err => console.error('Session refresh failed', err));
