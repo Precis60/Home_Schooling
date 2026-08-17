@@ -495,7 +495,7 @@
 
     function saveSpaces() {
       localStorage.setItem(SPACE_KEY, JSON.stringify(spaces));
-      supabaseClient.from('spaces').upsert({ id: 'main', data: spaces }).catch(console.error);
+      Promise.resolve(supabaseClient.from('spaces').upsert({ id: 'main', data: spaces })).catch(console.error);
     }
 
     function migrateTaskFields(arr) {
@@ -547,7 +547,7 @@
     function saveTasks() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
       const payload = tasks.map(t => ({ id: t.id, data: t }));
-      supabaseClient.from('tasks').upsert(payload).catch(console.error);
+      Promise.resolve(supabaseClient.from('tasks').upsert(payload)).catch(console.error);
     }
 
     function findList(listId) {
