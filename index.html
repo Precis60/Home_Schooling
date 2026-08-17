@@ -522,66 +522,77 @@
     let currentUser = null;
     let activeListId = null;
     let tasks = [];
-    let spaces = [];
+    let spacesByStudent = {};
     let currentView = 'board';
     let calendarMode = 'month';
     let calendarDate = new Date();
     const expandedFolders = new Set();
 
+    function getAllSpaces() {
+      const all = [];
+      Object.values(spacesByStudent).forEach(sp => all.push(...sp));
+      return all;
+    }
+
+    function getStudentSpaces(email) {
+      if (!spacesByStudent[email]) spacesByStudent[email] = seedSpaces();
+      return spacesByStudent[email];
+    }
+
     function seedSpaces() {
       return [
         {
-          id: 'home-school',
+          id: 'home-school-' + Math.random().toString(36).slice(2, 8),
           name: 'Home School',
           folders: [
             {
-              id: 'math', name: 'Mathematics', folders: [], lists: [
-                { id: 'math-t1', name: 'Term One 2026 Lessons' },
-                { id: 'math-t2', name: 'Term Two 2026 Lessons' },
-                { id: 'math-t3', name: 'Term Three 2026 Lessons' }
+              id: generateId(), name: 'Mathematics', folders: [], lists: [
+                { id: generateId(), name: 'Term One 2026 Lessons' },
+                { id: generateId(), name: 'Term Two 2026 Lessons' },
+                { id: generateId(), name: 'Term Three 2026 Lessons' }
               ]
             },
             {
-              id: 'pe', name: 'Physical Education', folders: [], lists: [
-                { id: 'pe-t1', name: 'Term One 2026 Lessons' },
-                { id: 'pe-t3', name: 'Term Three 2026 Lessons' }
+              id: generateId(), name: 'Physical Education', folders: [], lists: [
+                { id: generateId(), name: 'Term One 2026 Lessons' },
+                { id: generateId(), name: 'Term Three 2026 Lessons' }
               ]
             },
             {
-              id: 'science', name: 'Science', folders: [], lists: [
-                { id: 'science-t1', name: 'Term One 2026 Lessons' },
-                { id: 'science-t2', name: 'Term Two 2026 Lessons' },
-                { id: 'science-t3', name: 'Term Three 2026 Lessons' }
+              id: generateId(), name: 'Science', folders: [], lists: [
+                { id: generateId(), name: 'Term One 2026 Lessons' },
+                { id: generateId(), name: 'Term Two 2026 Lessons' },
+                { id: generateId(), name: 'Term Three 2026 Lessons' }
               ]
             },
             {
-              id: 'business', name: 'Business & Legal', folders: [], lists: [
-                { id: 'business-t1', name: 'Term One 2026 Lessons' },
-                { id: 'business-t2', name: 'Term Two 2026 Lessons' }
+              id: generateId(), name: 'Business & Legal', folders: [], lists: [
+                { id: generateId(), name: 'Term One 2026 Lessons' },
+                { id: generateId(), name: 'Term Two 2026 Lessons' }
               ]
             },
             {
-              id: 'economics', name: 'Economics & Investment', folders: [], lists: [
-                { id: 'economics-t1', name: 'Term One 2026 Lessons' },
-                { id: 'economics-t2', name: 'Term Two 2026 Lessons' }
+              id: generateId(), name: 'Economics & Investment', folders: [], lists: [
+                { id: generateId(), name: 'Term One 2026 Lessons' },
+                { id: generateId(), name: 'Term Two 2026 Lessons' }
               ]
             },
             {
-              id: 'english', name: 'English', folders: [], lists: [
-                { id: 'english-t1', name: 'Term One 2026 Lessons' },
-                { id: 'english-t2', name: 'Term Two 2026 Lessons' }
+              id: generateId(), name: 'English', folders: [], lists: [
+                { id: generateId(), name: 'Term One 2026 Lessons' },
+                { id: generateId(), name: 'Term Two 2026 Lessons' }
               ]
             }
           ]
         },
         {
-          id: 'sporting',
+          id: 'sporting-' + Math.random().toString(36).slice(2, 8),
           name: 'Sporting Activities',
           folders: [
             {
-              id: 'sporting-pe', name: 'Physical Education', folders: [], lists: [
-                { id: 'sporting-t3', name: 'Term Three 2026 Lessons' },
-                { id: 'sporting-t3-afternoon', name: 'Term Three 2026 Afternoon Sport' }
+              id: generateId(), name: 'Physical Education', folders: [], lists: [
+                { id: generateId(), name: 'Term Three 2026 Lessons' },
+                { id: generateId(), name: 'Term Three 2026 Afternoon Sport' }
               ]
             }
           ]
@@ -592,12 +603,19 @@
     function seedTasks() {
       const today = new Date().toISOString().split('T')[0];
       const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const lucasSpaces = getStudentSpaces('lucas@projects-consultant.com');
+      const emilySpaces = getStudentSpaces('emily@projects-consultant.com');
+      const lucasMathList = lucasSpaces[0].folders[0].lists[0].id;
+      const lucasPEList = lucasSpaces[0].folders[1].lists[1].id;
+      const lucasSportList = lucasSpaces[1].folders[0].lists[0].id;
+      const emilyEnglishList = emilySpaces[0].folders[5].lists[1].id;
+      const emilySportList = emilySpaces[1].folders[0].lists[1].id;
       return [
-        { id: generateId(), title: 'Math worksheet', listId: 'math-t1', status: 'Planned', assignee: 'student1', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' },
-        { id: generateId(), title: 'Read history chapter', listId: 'english-t2', status: 'In Progress', assignee: 'student2', priority: 'Medium', startDate: today, startTime: '', dueDate: future, dueTime: '', desc: 'Chapter 4: Ancient Rome', notes: '' },
-        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: 'pe-t3', status: 'Planned', assignee: 'student1', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
-        { id: generateId(), title: 'Daily 5k run', listId: 'sporting-t3', status: 'Planned', assignee: 'student1', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' },
-        { id: generateId(), title: 'Stretching routine', listId: 'sporting-t3-afternoon', status: 'Completed', assignee: 'student2', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' }
+        { id: generateId(), title: 'Math worksheet', listId: lucasMathList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'High', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Complete algebra worksheet p.12', notes: '' },
+        { id: generateId(), title: 'Read history chapter', listId: emilyEnglishList, status: 'In Progress', assignee: 'emily@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: future, dueTime: '', desc: 'Chapter 4: Ancient Rome', notes: '' },
+        { id: generateId(), title: 'T03W06S01: Physical Education - Midday Sport (UAC Basketball)!', listId: lucasPEList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Midday basketball session at UAC.', notes: 'Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.' },
+        { id: generateId(), title: 'Daily 5k run', listId: lucasSportList, status: 'Planned', assignee: 'lucas@projects-consultant.com', priority: 'Medium', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: 'Keep steady pace, log time', notes: '' },
+        { id: generateId(), title: 'Stretching routine', listId: emilySportList, status: 'Completed', assignee: 'emily@projects-consultant.com', priority: 'Low', startDate: today, startTime: '', dueDate: today, dueTime: '', desc: '15 min post-workout stretch', notes: '' }
       ];
     }
 
@@ -605,9 +623,23 @@
 
     function loadSpaces() {
       const raw = localStorage.getItem(SPACE_KEY);
-      spaces = raw ? JSON.parse(raw) : seedSpaces();
-      if (!raw) saveSpaces();
-      else migrateSpaces();
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          spacesByStudent = parsed;
+        } else {
+          spacesByStudent = {};
+        }
+      } else {
+        spacesByStudent = {};
+      }
+      Object.keys(userMap).forEach(email => {
+        if (userMap[email].role === 'student' && !spacesByStudent[email]) {
+          spacesByStudent[email] = seedSpaces();
+        }
+      });
+      migrateSpaces();
+      saveSpaces();
       syncSpacesFromSupabase();
     }
 
@@ -615,9 +647,9 @@
       try {
         const { data: rows, error } = await supabaseClient.from('hs_spaces').select('*').eq('id', 'main');
         if (error) throw error;
-        if (rows && rows.length && rows[0].data && Array.isArray(rows[0].data)) {
-          spaces = rows[0].data;
-          localStorage.setItem(SPACE_KEY, JSON.stringify(spaces));
+        if (rows && rows.length && rows[0].data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data)) {
+          spacesByStudent = rows[0].data;
+          localStorage.setItem(SPACE_KEY, JSON.stringify(spacesByStudent));
           migrateSpaces();
           if (currentUser) { renderSidebar(); if (activeListId) selectList(activeListId); }
         } else {
@@ -627,24 +659,25 @@
     }
 
     function migrateSpaces() {
-      function walk(folders) {
-        (folders || []).forEach(f => {
-          if (!Array.isArray(f.folders)) f.folders = [];
-          if (!Array.isArray(f.lists)) f.lists = [];
-          walk(f.folders);
-        });
-      }
-      spaces.forEach(s => walk(s.folders));
-      saveSpaces();
+      Object.values(spacesByStudent).forEach(spaces => {
+        function walk(folders) {
+          (folders || []).forEach(f => {
+            if (!Array.isArray(f.folders)) f.folders = [];
+            if (!Array.isArray(f.lists)) f.lists = [];
+            walk(f.folders);
+          });
+        }
+        spaces.forEach(s => walk(s.folders));
+      });
     }
 
     function saveSpaces() {
-      localStorage.setItem(SPACE_KEY, JSON.stringify(spaces));
+      localStorage.setItem(SPACE_KEY, JSON.stringify(spacesByStudent));
     }
 
     async function syncSpacesToSupabase() {
       try {
-        const { error } = await supabaseClient.from('hs_spaces').upsert({ id: 'main', data: spaces });
+        const { error } = await supabaseClient.from('hs_spaces').upsert({ id: 'main', data: spacesByStudent });
         if (error) throw error;
       } catch (err) { console.error('Supabase spaces sync failed', err); }
     }
@@ -701,7 +734,7 @@
     }
 
     function findList(listId) {
-      for (const space of spaces) {
+      for (const space of getAllSpaces()) {
         const res = findListInFolders(listId, space.folders, [], space);
         if (res) return res;
       }
@@ -727,7 +760,7 @@
           walk(folder.folders);
         });
       }
-      spaces.forEach(space => {
+      getAllSpaces().forEach(space => {
         (space.lists || []).forEach(list => lists.push(list));
         walk(space.folders);
       });
@@ -742,7 +775,7 @@
           walk(folder.folders, folder.id);
         });
       }
-      spaces.forEach(space => walk(space.folders, null));
+      getAllSpaces().forEach(space => walk(space.folders, null));
       return folders;
     }
 
@@ -759,7 +792,7 @@
         }
         return null;
       }
-      for (const space of spaces) {
+      for (const space of getAllSpaces()) {
         if ((space.lists || []).some(l => l.id === listId)) return null;
         const found = walk(space.folders);
         if (found) return found;
@@ -776,7 +809,7 @@
         }
         return null;
       }
-      for (const space of spaces) {
+      for (const space of getAllSpaces()) {
         if ((space.lists || []).some(l => l.id === listId)) return space.id;
         const found = walk(space.folders, space.id);
         if (found) return found;
@@ -847,6 +880,7 @@
           studentHeader.textContent = name;
           section.appendChild(studentHeader);
         }
+        const spaces = getStudentSpaces(email);
         spaces.forEach(space => {
           const spaceEl = document.createElement('div');
           spaceEl.className = 'tree-space';
@@ -858,8 +892,8 @@
             addBtn.type = 'button';
             addBtn.className = 'space-add-btn';
             addBtn.innerHTML = '&#43;';
-            addBtn.title = 'Add folder to ' + space.name;
-            addBtn.addEventListener('click', () => promptAddFolderToSpace(space.id));
+            addBtn.title = 'Add folder to ' + space.name + ' for ' + name;
+            addBtn.addEventListener('click', () => promptAddFolderToSpace(space.id, email));
             spaceHeader.appendChild(addBtn);
           }
           spaceEl.appendChild(spaceHeader);
@@ -1177,17 +1211,17 @@
     }
 
     function buildSpaceOptions() {
-      return spaces.map(s => ({ value: s.id, label: s.name }));
+      return getAllSpaces().map(s => ({ value: s.id, label: s.name }));
     }
 
     function buildCategoryOptions(spaceId) {
-      const space = spaces.find(s => s.id === spaceId);
+      const space = getAllSpaces().find(s => s.id === spaceId);
       if (!space) return [];
       return (space.folders || []).map(f => ({ value: f.id, label: f.name }));
     }
 
     function buildListOptionsForCategory(spaceId, folderId) {
-      const space = spaces.find(s => s.id === spaceId);
+      const space = getAllSpaces().find(s => s.id === spaceId);
       if (!space) return [];
       function walk(folders) {
         for (const folder of (folders || [])) {
@@ -1206,7 +1240,7 @@
 
     function buildListOptions() {
       const opts = [];
-      spaces.forEach(space => {
+      getAllSpaces().forEach(space => {
         addFolderListOptions(space.folders, [space.name], opts);
       });
       return opts;
@@ -1233,7 +1267,8 @@
       const studentOptions = Object.entries(userMap).filter(([email,u]) => u.role === 'student').map(([email,u]) => ({value: email, label: u.name}));
 
       const currentListId = task ? task.listId : activeListId;
-      const currentSpaceId = getListSpaceId(currentListId) || (spaces[0] && spaces[0].id);
+      const allSpaces = getAllSpaces();
+      const currentSpaceId = getListSpaceId(currentListId) || (allSpaces[0] && allSpaces[0].id);
       const currentFolderId = getListFolderId(currentListId) || null;
 
       fillSelect('tSpace', buildSpaceOptions(), currentSpaceId);
@@ -1376,7 +1411,7 @@
     }
 
     function findFolder(folderId) {
-      for (const space of spaces) {
+      for (const space of getAllSpaces()) {
         const res = findFolderIn(space.folders, [], space, space.folders);
         if (res) return res;
       }
@@ -1393,10 +1428,11 @@
       return null;
     }
 
-    function promptAddFolderToSpace(spaceId) {
-      const space = spaces.find(s => s.id === spaceId);
+    function promptAddFolderToSpace(spaceId, studentEmail) {
+      const studentSpaces = getStudentSpaces(studentEmail);
+      const space = studentSpaces.find(s => s.id === spaceId);
       if (!space) { alert('Space not found.'); return; }
-      const name = prompt('Add folder to "' + space.name + '":');
+      const name = prompt('Add folder to "' + space.name + '" for ' + (userMap[studentEmail]?.name || studentEmail) + ':');
       if (!name || !name.trim()) return;
       const id = generateId();
       space.folders.push({ id, name: name.trim(), folders: [], lists: [] });
@@ -1407,13 +1443,21 @@
     }
 
     function promptAddFolder() {
-      const options = spaces.map((s, i) => (i + 1) + '. ' + s.name).join('\n');
-      const choice = prompt('Add folder to which space?\n' + options);
+      const students = Object.entries(userMap).filter(([_, u]) => u.role === 'student');
+      const options = students.map(([email, u], i) => (i + 1) + '. ' + u.name).join('\n');
+      const choice = prompt('Add folder for which student?\n' + options);
       if (!choice) return;
       const idx = parseInt(choice, 10) - 1;
-      const space = spaces[idx];
+      const studentEmail = students[idx] && students[idx][0];
+      if (!studentEmail) { alert('Student not found.'); return; }
+      const studentSpaces = getStudentSpaces(studentEmail);
+      const spaceOptions = studentSpaces.map((s, i) => (i + 1) + '. ' + s.name).join('\n');
+      const spaceChoice = prompt('Add folder to which space?\n' + spaceOptions);
+      if (!spaceChoice) return;
+      const spaceIdx = parseInt(spaceChoice, 10) - 1;
+      const space = studentSpaces[spaceIdx];
       if (!space) { alert('Space not found.'); return; }
-      promptAddFolderToSpace(space.id);
+      promptAddFolderToSpace(space.id, studentEmail);
     }
 
     function promptAddSubfolder(parentFolderId) {
@@ -1430,8 +1474,9 @@
     }
 
     function promptAddList() {
-      const spaceId = prompt('Enter space ID (home-school or sporting):');
-      const space = spaces.find(s => s.id === spaceId);
+      const allSpaces = getAllSpaces();
+      const spaceId = prompt('Enter space ID:');
+      const space = allSpaces.find(s => s.id === spaceId);
       if (!space) { alert('Space not found.'); return; }
       const folderId = prompt('Enter folder ID. Any nested folder in the space is valid.');
       const found = findFolder(folderId);
@@ -1624,7 +1669,7 @@
       const students = Object.entries(userMap).filter(([_, u]) => u.role === 'student').map(([email, u]) => ({ email, name: u.name }));
       buildDropdownMenu('studentDropdownMenu', students, filterHidden.students, s => s.email, s => s.name);
       buildDropdownMenu('categoryDropdownMenu', getTopLevelFolders(), filterHidden.folders, f => f.id, f => f.name);
-      buildDropdownMenu('spaceDropdownMenu', spaces, filterHidden.spaces, s => s.id, s => s.name);
+      buildDropdownMenu('spaceDropdownMenu', getAllSpaces(), filterHidden.spaces, s => s.id, s => s.name);
     }
 
     function getDisplayDate(task) {
