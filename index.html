@@ -644,6 +644,42 @@
       return null;
     }
 
+    const listPalette = [
+      { bg: '#fee2e2', border: '#ef4444' },
+      { bg: '#fef3c7', border: '#f59e0b' },
+      { bg: '#d1fae5', border: '#10b981' },
+      { bg: '#dbeafe', border: '#3b82f6' },
+      { bg: '#e0e7ff', border: '#6366f1' },
+      { bg: '#fce7f3', border: '#ec4899' },
+      { bg: '#f3e8ff', border: '#a855f7' },
+      { bg: '#ccfbf1', border: '#14b8a6' },
+      { bg: '#ffedd5', border: '#f97316' },
+      { bg: '#f1f5f9', border: '#64748b' },
+      { bg: '#ecfeff', border: '#06b6d4' },
+      { bg: '#fef2f2', border: '#f43f5e' },
+    ];
+
+    function getAllLists() {
+      const lists = [];
+      function walk(folders) {
+        (folders || []).forEach(folder => {
+          (folder.lists || []).forEach(list => lists.push(list));
+          walk(folder.folders);
+        });
+      }
+      spaces.forEach(space => {
+        (space.lists || []).forEach(list => lists.push(list));
+        walk(space.folders);
+      });
+      return lists;
+    }
+
+    function getListColor(listId) {
+      const all = getAllLists();
+      const index = all.findIndex(l => l.id === listId);
+      return listPalette[index % listPalette.length];
+    }
+
     function setViews() {
       if (currentUser) {
         document.getElementById('login').style.display = 'none';
@@ -901,8 +937,10 @@
 
     function createTimeEvent(task, startMins, endMins, allDay) {
       const el = document.createElement('div');
-      const p = (task.priority || 'Medium').toLowerCase();
-      el.className = 'calendar-event priority-' + p + (allDay ? ' all-day' : '');
+      const color = getListColor(task.listId);
+      el.className = 'calendar-event' + (allDay ? ' all-day' : '');
+      el.style.backgroundColor = color.bg;
+      el.style.borderLeftColor = color.border;
       el.addEventListener('click', () => openTask(task.id));
       const startStr = formatTime12(task.startTime);
       const endStr = formatTime12(task.dueTime);
@@ -1338,7 +1376,10 @@
     function createCalendarTask(task, dateStr) {
       const time = getDisplayTime(task, dateStr);
       const el = document.createElement('div');
+      const color = getListColor(task.listId);
       el.className = 'calendar-task';
+      el.style.backgroundColor = color.bg;
+      el.style.borderLeftColor = color.border;
       el.innerHTML = '<div>' + escapeHtml(task.title) + '</div>' +
         (time ? '<div class="time">' + time + '</div>' : '') +
         '<div><span class="badge priority-' + task.priority.toLowerCase() + '">' + task.priority + '</span></div>';
