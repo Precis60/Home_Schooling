@@ -675,10 +675,12 @@
       return lists;
     }
 
-    function getListColor(listId) {
+    function getListColor(listId, assigneeEmail) {
       const all = getAllLists();
       const index = all.findIndex(l => l.id === listId);
-      return listPalette[index % listPalette.length];
+      const emily = 'emily@projects-consultant.com';
+      const offset = (assigneeEmail === emily) ? 6 : 0;
+      return listPalette[(index + offset) % listPalette.length];
     }
 
     function setViews() {
@@ -938,7 +940,7 @@
 
     function createTimeEvent(task, startMins, endMins, allDay) {
       const el = document.createElement('div');
-      const color = getListColor(task.listId);
+      const color = getListColor(task.listId, task.assignee);
       el.className = 'calendar-event' + (allDay ? ' all-day' : '');
       el.style.backgroundColor = color.bg;
       el.style.borderLeftColor = color.border;
@@ -1377,7 +1379,7 @@
     function createCalendarTask(task, dateStr) {
       const time = getDisplayTime(task, dateStr);
       const el = document.createElement('div');
-      const color = getListColor(task.listId);
+      const color = getListColor(task.listId, task.assignee);
       el.className = 'calendar-task';
       el.style.backgroundColor = color.bg;
       el.style.borderLeftColor = color.border;
