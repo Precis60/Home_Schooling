@@ -645,21 +645,6 @@
       return null;
     }
 
-    const listPalette = [
-      { bg: '#fee2e2', border: '#ef4444' },
-      { bg: '#fef3c7', border: '#f59e0b' },
-      { bg: '#d1fae5', border: '#10b981' },
-      { bg: '#dbeafe', border: '#3b82f6' },
-      { bg: '#e0e7ff', border: '#6366f1' },
-      { bg: '#fce7f3', border: '#ec4899' },
-      { bg: '#f3e8ff', border: '#a855f7' },
-      { bg: '#ccfbf1', border: '#14b8a6' },
-      { bg: '#ffedd5', border: '#f97316' },
-      { bg: '#f1f5f9', border: '#64748b' },
-      { bg: '#ecfeff', border: '#06b6d4' },
-      { bg: '#fef2f2', border: '#f43f5e' },
-    ];
-
     function getAllLists() {
       const lists = [];
       function walk(folders) {
@@ -675,12 +660,31 @@
       return lists;
     }
 
+    let _listColorCache = null;
+    function buildListColorCache() {
+      const keys = new Set();
+      tasks.forEach(t => {
+        if (t.listId) keys.add(t.listId + '|' + (t.assignee || ''));
+      });
+      getAllLists().forEach(list => {
+        keys.add(list.id + '|');
+      });
+      const sorted = Array.from(keys).sort();
+      const map = {};
+      sorted.forEach((key, i) => {
+        const hue = (i * 137.508) % 360;
+        map[key] = {
+          bg: 'hsl(' + hue.toFixed(1) + ', 70%, 88%)',
+          border: 'hsl(' + hue.toFixed(1) + ', 65%, 45%)'
+        };
+      });
+      _listColorCache = map;
+    }
+
     function getListColor(listId, assigneeEmail) {
-      const all = getAllLists();
-      const index = all.findIndex(l => l.id === listId);
-      const emily = 'emily@projects-consultant.com';
-      const offset = (assigneeEmail === emily) ? 6 : 0;
-      return listPalette[(index + offset) % listPalette.length];
+      if (!_listColorCache) buildListColorCache();
+      const key = listId + '|' + (assigneeEmail || '');
+      return _listColorCache[key] || { bg: '#f1f5f9', border: '#64748b' };
     }
 
     function setViews() {
@@ -965,6 +969,39 @@
       return el;
     }
 
+    function positionEvents(events) {
+      if (events.length < 2) return;
+      const sorted = events.slice().sort((a, b) => a.startMins - b.startMins || a.endMins - b.endMins);
+      const clusters = [];
+      let current = [sorted[0]];
+      for (let i = 1; i < sorted.length; i++) {
+        const e = sorted[i];
+        const lastEnd = Math.max(...current.map(x => x.endMins));
+        if (e.startMins < lastEnd) {
+          current.push(e);
+        } else {
+          clusters.push(current);
+          current = [e];
+        }
+      }
+      clusters.push(current);
+      clusters.forEach(cluster => {
+        const colEnd = [];
+        cluster.forEach(e => {
+          let col = colEnd.findIndex(end => end <= e.startMins);
+          if (col === -1) { col = colEnd.length; colEnd.push(e.endMins); }
+          else { colEnd[col] = e.endMins; }
+          e._col = col;
+        });
+        const maxCol = Math.max(1, colEnd.length);
+        cluster.forEach(e => {
+          e.el.style.left = 'calc(' + (e._col / maxCol * 100).toFixed(4) + '% + 2px)';
+          e.el.style.width = 'calc(' + (100 / maxCol).toFixed(4) + '% - 4px)';
+          e.el.style.right = 'auto';
+        });
+      });
+    }
+
     function escapeHtml(s) {
       return s.split('').map(c => {
         if (c === '&') return '&amp;';
@@ -977,6 +1014,7 @@
     }
 
     function renderBoard() {
+      _listColorCache = null;
       const board = document.getElementById('boardColumns');
       board.innerHTML = '';
       if (!activeListId) return;
@@ -994,6 +1032,8 @@
             const el = document.createElement('div');
             el.className = 'task';
             el.dataset.id = task.id;
+            const color = getListColor(task.listId, task.assignee);
+            el.style.borderLeft = '3px solid ' + color.border;
             const priorityClass = 'priority-' + task.priority.toLowerCase();
             el.innerHTML = '<div class="task-title">' + escapeHtml(task.title) + '</div>' +
               '<div class="task-meta">' +
@@ -1395,6 +1435,7 @@
     }
 
     function renderCalendar() {
+      _listColorCache = null;
       const grid = document.getElementById('calendarGrid');
       grid.innerHTML = '';
       document.getElementById('pageTitle').textContent = 'Calendar';
@@ -1456,7 +1497,15 @@
             row.className = 'hour-row';
             dayCol.appendChild(row);
           }
-          ranges.forEach(r => { if (!r.allDay) dayCol.appendChild(createTimeEvent(r.task, r.startMins, r.endMins, false)); });
+          const dayEvents = [];
+          ranges.forEach(r => {
+            if (!r.allDay) {
+              const el = createTimeEvent(r.task, r.startMins, r.endMins, false);
+              dayCol.appendChild(el);
+              dayEvents.push({ el, startMins: r.startMins, endMins: r.endMins });
+            }
+          });
+          positionEvents(dayEvents);
           weekColumns.appendChild(dayCol);
         }
         grid.appendChild(header);
@@ -1500,7 +1549,15 @@
           row.className = 'hour-row';
           dayCol.appendChild(row);
         }
-        ranges.forEach(r => { if (!r.allDay) dayCol.appendChild(createTimeEvent(r.task, r.startMins, r.endMins, false)); });
+        const dayEvents = [];
+        ranges.forEach(r => {
+          if (!r.allDay) {
+            const el = createTimeEvent(r.task, r.startMins, r.endMins, false);
+            dayCol.appendChild(el);
+            dayEvents.push({ el, startMins: r.startMins, endMins: r.endMins });
+          }
+        });
+        positionEvents(dayEvents);
         const timeGrid = document.createElement('div');
         timeGrid.className = 'time-grid';
         const gutter = document.createElement('div');
