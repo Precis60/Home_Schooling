@@ -726,7 +726,7 @@
           });
           localStorage.setItem(SPACE_KEY, JSON.stringify(spacesByStudent));
           migrateSpaces();
-          if (currentUser) { renderSidebar(); }
+          if (currentUser) { renderSidebar(); render(); }
         }
       } catch (err) { console.error('Supabase sync spaces failed', err); }
     }
@@ -810,7 +810,7 @@
           localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
           if (currentUser) {
             renderSidebar();
-            if (currentView === 'board') renderBoard(); else if (currentView === 'calendar') renderCalendar();
+            render();
           }
         } else {
           saveTasks();
@@ -1908,7 +1908,8 @@
 
     function render() {
       if (currentView === 'board') renderBoard();
-      else renderCalendar();
+      else if (currentView === 'calendar') renderCalendar();
+      else if (currentView === 'dashboard') renderDashboard();
       renderFilterBar();
     }
 
