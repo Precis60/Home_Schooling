@@ -144,6 +144,14 @@
       #printArea, #printArea * { visibility: visible; }
       #printArea { position: absolute; left: 0; top: 0; width: 100%; }
     }
+    .folder-body { display: none; }
+    .folder-body.open { display: block; }
+    .folder-children { margin-left: 12px; }
+    .manager-actions { display: inline-flex; gap: 4px; }
+    .manager-action { font-size: 11px; color: var(--primary); cursor: pointer; padding: 1px 3px; border-radius: 4px; white-space: nowrap; }
+    .manager-action:hover { background: rgba(124,58,237,0.08); }
+    .list-name { flex: 1; }
+    .list-row .manager-actions { margin-left: 8px; }
   </style>
 </head>
 <body>
@@ -312,39 +320,39 @@
           name: 'Home School',
           folders: [
             {
-              id: 'math', name: 'Mathematics', lists: [
+              id: 'math', name: 'Mathematics', folders: [], lists: [
                 { id: 'math-t1', name: 'Term One 2026 Lessons' },
                 { id: 'math-t2', name: 'Term Two 2026 Lessons' },
                 { id: 'math-t3', name: 'Term Three 2026 Lessons' }
               ]
             },
             {
-              id: 'pe', name: 'Physical Education', lists: [
+              id: 'pe', name: 'Physical Education', folders: [], lists: [
                 { id: 'pe-t1', name: 'Term One 2026 Lessons' },
                 { id: 'pe-t3', name: 'Term Three 2026 Lessons' }
               ]
             },
             {
-              id: 'science', name: 'Science', lists: [
+              id: 'science', name: 'Science', folders: [], lists: [
                 { id: 'science-t1', name: 'Term One 2026 Lessons' },
                 { id: 'science-t2', name: 'Term Two 2026 Lessons' },
                 { id: 'science-t3', name: 'Term Three 2026 Lessons' }
               ]
             },
             {
-              id: 'business', name: 'Business & Legal', lists: [
+              id: 'business', name: 'Business & Legal', folders: [], lists: [
                 { id: 'business-t1', name: 'Term One 2026 Lessons' },
                 { id: 'business-t2', name: 'Term Two 2026 Lessons' }
               ]
             },
             {
-              id: 'economics', name: 'Economics & Investment', lists: [
+              id: 'economics', name: 'Economics & Investment', folders: [], lists: [
                 { id: 'economics-t1', name: 'Term One 2026 Lessons' },
                 { id: 'economics-t2', name: 'Term Two 2026 Lessons' }
               ]
             },
             {
-              id: 'english', name: 'English', lists: [
+              id: 'english', name: 'English', folders: [], lists: [
                 { id: 'english-t1', name: 'Term One 2026 Lessons' },
                 { id: 'english-t2', name: 'Term Two 2026 Lessons' }
               ]
@@ -356,7 +364,7 @@
           name: 'Sporting Activities',
           folders: [
             {
-              id: 'sporting-pe', name: 'Physical Education', lists: [
+              id: 'sporting-pe', name: 'Physical Education', folders: [], lists: [
                 { id: 'sporting-t3', name: 'Term Three 2026 Lessons' },
                 { id: 'sporting-t3-afternoon', name: 'Term Three 2026 Afternoon Sport' }
               ]
@@ -384,6 +392,19 @@
       const raw = localStorage.getItem(SPACE_KEY);
       spaces = raw ? JSON.parse(raw) : seedSpaces();
       if (!raw) saveSpaces();
+      else migrateSpaces();
+    }
+
+    function migrateSpaces() {
+      function walk(folders) {
+        (folders || []).forEach(f => {
+          if (!Array.isArray(f.folders)) f.folders = [];
+          if (!Array.isArray(f.lists)) f.lists = [];
+          walk(f.folders);
+        });
+      }
+      spaces.forEach(s => walk(s.folders));
+      saveSpaces();
     }
 
     function saveSpaces() { localStorage.setItem(SPACE_KEY, JSON.stringify(spaces)); }
@@ -410,11 +431,19 @@
 
     function findList(listId) {
       for (const space of spaces) {
-        for (const folder of space.folders) {
-          for (const list of folder.lists) {
-            if (list.id === listId) return { space, folder, list };
-          }
+        const res = findListInFolders(space.folders, [], space);
+        if (res) return res;
+      }
+      return null;
+    }
+
+    function findListInFolders(folders, ancestors, space) {
+      for (const folder of (folders || [])) {
+        for (const list of (folder.lists || [])) {
+          if (list.id === listId) return { space, ancestors: [...ancestors], folder, list };
         }
+        const nested = findListInFolders(folder.folders, [...ancestors, folder], space);
+        if (nested) return nested;
       }
       return null;
     }
@@ -446,37 +475,80 @@
         spaceEl.innerHTML = '<div class="space-name">' + escapeHtml(space.name) + '</div>';
         const folderContainer = document.createElement('div');
         folderContainer.className = 'tree-folders';
-
-        space.folders.forEach(folder => {
-          const isOpen = expandedFolders.has(folder.id);
-          const folderRow = document.createElement('div');
-          folderRow.className = 'folder-row';
-          folderRow.dataset.folder = folder.id;
-          folderRow.innerHTML = '<span class="chevron">' + (isOpen ? '&#9662;' : '&#9656;') + '</span>' +
-            '<span class="folder-icon">&#128193;</span>' +
-            '<span class="folder-name">' + escapeHtml(folder.name) + '</span>';
-          folderRow.addEventListener('click', () => toggleFolder(folder.id));
-          folderContainer.appendChild(folderRow);
-
-          const listContainer = document.createElement('div');
-          listContainer.className = 'tree-lists' + (isOpen ? ' open' : '');
-          folder.lists.forEach(list => {
-            const listRow = document.createElement('div');
-            listRow.className = 'list-row' + (activeListId === list.id ? ' active' : '');
-            listRow.textContent = escapeHtml(list.name);
-            const count = document.createElement('span');
-            count.className = 'count';
-            count.textContent = getTaskCount(list.id);
-            listRow.appendChild(count);
-            listRow.addEventListener('click', () => selectList(list.id));
-            listContainer.appendChild(listRow);
-          });
-          folderContainer.appendChild(listContainer);
-        });
-
+        (space.folders || []).forEach(folder => renderFolder(folder, folderContainer));
         spaceEl.appendChild(folderContainer);
         tree.appendChild(spaceEl);
       });
+    }
+
+    function renderFolder(folder, parentEl) {
+      const isOpen = expandedFolders.has(folder.id);
+      const folderEl = document.createElement('div');
+      folderEl.className = 'tree-folder';
+
+      const row = document.createElement('div');
+      row.className = 'folder-row';
+      row.dataset.folder = folder.id;
+      row.innerHTML = '<span class="chevron">' + (isOpen ? '&#9662;' : '&#9656;') + '</span>' +
+        '<span class="folder-icon">&#128193;</span>' +
+        '<span class="folder-name">' + escapeHtml(folder.name) + '</span>';
+      const actions = document.createElement('span');
+      actions.className = 'manager-actions';
+      if (currentUser.role !== 'manager') actions.classList.add('hidden');
+      actions.innerHTML = '<span class="manager-action" data-action="add-subfolder">+ Subfolder</span>' +
+        '<span class="manager-action" data-action="add-list">+ List</span>' +
+        '<span class="manager-action" data-action="rename-folder">Edit</span>' +
+        '<span class="manager-action" data-action="delete-folder">Delete</span>';
+      actions.querySelectorAll('.manager-action').forEach(a => {
+        a.dataset.id = folder.id;
+        a.addEventListener('click', e => { e.stopPropagation(); onFolderAction(a.dataset.action, a.dataset.id); });
+      });
+      row.appendChild(actions);
+      row.addEventListener('click', e => { if (e.target.closest('.manager-action')) return; toggleFolder(folder.id); });
+      folderEl.appendChild(row);
+
+      const body = document.createElement('div');
+      body.className = 'folder-body' + (isOpen ? ' open' : '');
+      const childFolders = document.createElement('div');
+      childFolders.className = 'folder-children';
+      (folder.folders || []).forEach(sub => renderFolder(sub, childFolders));
+      body.appendChild(childFolders);
+
+      const listContainer = document.createElement('div');
+      listContainer.className = 'tree-lists' + (isOpen ? ' open' : '');
+      (folder.lists || []).forEach(list => {
+        const listRow = document.createElement('div');
+        listRow.className = 'list-row' + (activeListId === list.id ? ' active' : '');
+        listRow.innerHTML = '<span class="list-name">' + escapeHtml(list.name) + '</span>' +
+          '<span class="count">' + getTaskCount(list.id) + '</span>' +
+          '<span class="manager-actions">' +
+          '<span class="manager-action" data-action="rename-list">Edit</span>' +
+          '<span class="manager-action" data-action="delete-list">Delete</span>' +
+          '</span>';
+        const listActions = listRow.querySelector('.manager-actions');
+        if (currentUser.role !== 'manager') listActions.classList.add('hidden');
+        listRow.querySelectorAll('.manager-action').forEach(a => {
+          a.dataset.id = list.id;
+          a.addEventListener('click', e => { e.stopPropagation(); onListAction(a.dataset.action, a.dataset.id); });
+        });
+        listRow.addEventListener('click', e => { if (e.target.closest('.manager-action')) return; selectList(list.id); });
+        listContainer.appendChild(listRow);
+      });
+      body.appendChild(listContainer);
+      folderEl.appendChild(body);
+      parentEl.appendChild(folderEl);
+    }
+
+    function onFolderAction(action, folderId) {
+      if (action === 'add-subfolder') promptAddSubfolder(folderId);
+      else if (action === 'add-list') promptAddListToFolder(folderId);
+      else if (action === 'rename-folder') renameFolder(folderId);
+      else if (action === 'delete-folder') deleteFolder(folderId);
+    }
+
+    function onListAction(action, listId) {
+      if (action === 'rename-list') renameList(listId);
+      else if (action === 'delete-list') deleteList(listId);
     }
 
     function toggleFolder(folderId) {
@@ -490,7 +562,10 @@
       const found = findList(listId);
       if (found) {
         document.getElementById('pageTitle').textContent = found.list.name;
-        document.getElementById('pageBreadcrumb').textContent = found.space.name + ' / ' + found.folder.name;
+        const path = [found.space.name]
+          .concat(found.ancestors.map(f => f.name), [found.folder.name, found.list.name])
+          .join(' / ');
+        document.getElementById('pageBreadcrumb').textContent = path;
       }
       switchView('board');
     }
@@ -556,13 +631,19 @@
     function buildListOptions() {
       const opts = [];
       spaces.forEach(space => {
-        space.folders.forEach(folder => {
-          folder.lists.forEach(list => {
-            opts.push({ value: list.id, label: space.name + ' / ' + folder.name + ' / ' + list.name });
-          });
-        });
+        addFolderListOptions(space.folders, [space.name], opts);
       });
       return opts;
+    }
+
+    function addFolderListOptions(folders, path, opts) {
+      for (const folder of (folders || [])) {
+        const folderPath = path.concat(folder.name);
+        for (const list of (folder.lists || [])) {
+          opts.push({ value: list.id, label: folderPath.concat(list.name).join(' / ') });
+        }
+        addFolderListOptions(folder.folders, folderPath, opts);
+      }
     }
 
     function openTask(id) {
@@ -681,6 +762,24 @@
       printArea.style.display = 'none';
     }
 
+    function findFolder(folderId) {
+      for (const space of spaces) {
+        const res = findFolderIn(space.folders, [], space, space.folders);
+        if (res) return res;
+      }
+      return null;
+    }
+
+    function findFolderIn(folders, ancestors, space, parent) {
+      for (let i = 0; i < folders.length; i++) {
+        const f = folders[i];
+        if (f.id === folderId) return { space, parent, folder: f, ancestors: [...ancestors] };
+        const res = findFolderIn(f.folders, [...ancestors, f], space, f.folders);
+        if (res) return res;
+      }
+      return null;
+    }
+
     function promptAddFolder() {
       const spaceId = prompt('Enter space ID (home-school or sporting):');
       const space = spaces.find(s => s.id === spaceId);
@@ -688,9 +787,21 @@
       const name = prompt('Folder name:');
       if (!name) return;
       const id = generateId();
-      space.folders.push({ id, name, lists: [] });
+      space.folders.push({ id, name: name.trim(), folders: [], lists: [] });
       saveSpaces();
       expandedFolders.add(id);
+      renderSidebar();
+    }
+
+    function promptAddSubfolder(parentFolderId) {
+      const name = prompt('Subfolder name:');
+      if (!name) return;
+      const found = findFolder(parentFolderId);
+      if (!found) { alert('Folder not found.'); return; }
+      const id = generateId();
+      found.folder.folders.push({ id, name: name.trim(), folders: [], lists: [] });
+      expandedFolders.add(id);
+      saveSpaces();
       renderSidebar();
     }
 
@@ -698,14 +809,85 @@
       const spaceId = prompt('Enter space ID (home-school or sporting):');
       const space = spaces.find(s => s.id === spaceId);
       if (!space) { alert('Space not found.'); return; }
-      const folderId = prompt('Enter folder ID. Available folders: ' + space.folders.map(f => f.id).join(', '));
-      const folder = space.folders.find(f => f.id === folderId);
-      if (!folder) { alert('Folder not found.'); return; }
+      const folderId = prompt('Enter folder ID. Any nested folder in the space is valid.');
+      const found = findFolder(folderId);
+      if (!found || found.space.id !== spaceId) { alert('Folder not found.'); return; }
       const name = prompt('List name:');
       if (!name) return;
-      folder.lists.push({ id: generateId(), name });
+      found.folder.lists.push({ id: generateId(), name: name.trim() });
       saveSpaces();
       renderSidebar();
+    }
+
+    function promptAddListToFolder(folderId) {
+      const found = findFolder(folderId);
+      if (!found) { alert('Folder not found.'); return; }
+      const name = prompt('List name:');
+      if (!name) return;
+      found.folder.lists.push({ id: generateId(), name: name.trim() });
+      saveSpaces();
+      renderSidebar();
+    }
+
+    function renameFolder(folderId) {
+      const found = findFolder(folderId);
+      if (!found) return;
+      const name = prompt('Rename folder:', found.folder.name);
+      if (name) { found.folder.name = name.trim(); saveSpaces(); renderSidebar(); }
+    }
+
+    function renameList(listId) {
+      const found = findList(listId);
+      if (!found) return;
+      const name = prompt('Rename list:', found.list.name);
+      if (name) { found.list.name = name.trim(); saveSpaces(); renderSidebar(); }
+    }
+
+    function deleteFolder(folderId) {
+      const found = findFolder(folderId);
+      if (!found) return;
+      if (!confirm('Delete folder "' + found.folder.name + '" and all its lists?')) return;
+      const listIds = collectListIds(found.folder);
+      const idx = found.parent.findIndex(f => f.id === folderId);
+      if (idx !== -1) found.parent.splice(idx, 1);
+      tasks = tasks.filter(t => !listIds.has(t.listId));
+      saveSpaces();
+      saveTasks();
+      expandedFolders.delete(folderId);
+      if (activeListId && listIds.has(activeListId)) {
+        activeListId = null;
+        document.getElementById('pageTitle').textContent = 'Select a list';
+        document.getElementById('pageBreadcrumb').textContent = '';
+      }
+      renderSidebar();
+      render();
+    }
+
+    function deleteList(listId) {
+      const found = findList(listId);
+      if (!found) return;
+      if (!confirm('Delete list "' + found.list.name + '"?')) return;
+      const idx = found.folder.lists.findIndex(l => l.id === listId);
+      if (idx !== -1) found.folder.lists.splice(idx, 1);
+      tasks = tasks.filter(t => t.listId !== listId);
+      saveSpaces();
+      saveTasks();
+      if (activeListId === listId) {
+        activeListId = null;
+        document.getElementById('pageTitle').textContent = 'Select a list';
+        document.getElementById('pageBreadcrumb').textContent = '';
+      }
+      renderSidebar();
+      render();
+    }
+
+    function collectListIds(folder) {
+      const set = new Set();
+      (folder.lists || []).forEach(l => set.add(l.id));
+      (folder.folders || []).forEach(sub => {
+        collectListIds(sub).forEach(id => set.add(id));
+      });
+      return set;
     }
 
     function switchView(view) {
