@@ -1668,15 +1668,16 @@
         document.getElementById('login').style.display = 'none';
         document.getElementById('app').classList.add('active');
         document.getElementById('userLabel').textContent = currentUser.name + ' (' + currentUser.role + ')';
-        document.getElementById('addTaskBtn').classList.toggle('hidden', currentUser.role !== 'manager');
-        document.getElementById('addFolderBtn').classList.toggle('hidden', currentUser.role !== 'manager');
-        document.getElementById('addListBtn').classList.toggle('hidden', currentUser.role !== 'manager');
+        // Students can add tasks, folders, and lists to their own spaces
+        document.getElementById('addTaskBtn').classList.toggle('hidden', false);
+        document.getElementById('addFolderBtn').classList.toggle('hidden', false);
+        document.getElementById('addListBtn').classList.toggle('hidden', false);
         document.getElementById('settingsBtn').classList.toggle('hidden', currentUser.role !== 'manager');
         document.getElementById('reportBtn').classList.toggle('hidden', false);
         document.getElementById('templateBtn').classList.toggle('hidden', currentUser.role !== 'manager');
         document.getElementById('automationBtn').classList.toggle('hidden', currentUser.role !== 'manager');
         const quickAdd = document.getElementById('quickAddWrap');
-        if (quickAdd) quickAdd.style.display = currentUser.role === 'manager' ? 'flex' : 'none';
+        if (quickAdd) quickAdd.style.display = 'flex';
         document.getElementById('searchBtn').style.display = 'inline-block';
         renderFilterBar();
         renderSavedViewsBar();
@@ -1733,7 +1734,6 @@
 
     function renderFolder(folder, parentEl, assigneeEmail, canManage) {
       const isOpen = expandedFolders.has(folder.id);
-      const isManager = currentUser.role === 'manager';
       const folderEl = document.createElement('div');
       folderEl.className = 'tree-folder';
 
@@ -1749,7 +1749,7 @@
         menuBtn.className = 'menu-btn';
         menuBtn.innerHTML = '&#x22EE;';
         menuBtn.title = 'Actions';
-        menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'folder', folder.id, isManager); });
+        menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'folder', folder.id, canManage); });
         row.appendChild(menuBtn);
       }
       row.addEventListener('click', e => { if (e.target.closest('.menu-btn, .dropdown-menu')) return; toggleFolder(folder.id); });
@@ -1775,7 +1775,7 @@
           menuBtn.className = 'menu-btn';
           menuBtn.innerHTML = '&#x22EE;';
           menuBtn.title = 'Actions';
-          menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'list', list.id, isManager); });
+          menuBtn.addEventListener('click', e => { e.stopPropagation(); toggleDropdown(menuBtn, 'list', list.id, canManage); });
           listRow.appendChild(menuBtn);
         }
         listRow.addEventListener('click', e => { if (e.target.closest('.menu-btn, .dropdown-menu')) return; selectList(list.id); });
@@ -1817,7 +1817,7 @@
       if (bd) bd.classList.remove('open');
     }
 
-    function toggleDropdown(btn, type, id, isManager) {
+    function toggleDropdown(btn, type, id, canManage) {
       if (btn.classList.contains('active')) {
         closeAllDropdowns();
         return;
@@ -1831,10 +1831,10 @@
         { action: 'add-subfolder', label: 'Add Subfolder' },
         { action: 'add-list', label: 'Add List' },
         { action: 'rename-folder', label: 'Rename Folder' },
-        ...(isManager ? [{ action: 'delete-folder', label: 'Delete Folder', danger: true }] : [])
+        ...(canManage ? [{ action: 'delete-folder', label: 'Delete Folder', danger: true }] : [])
       ] : [
         { action: 'rename-list', label: 'Rename List' },
-        ...(isManager ? [{ action: 'delete-list', label: 'Delete List', danger: true }] : [])
+        ...(canManage ? [{ action: 'delete-list', label: 'Delete List', danger: true }] : [])
       ];
       items.forEach(item => {
         const el = document.createElement('button');
@@ -2240,7 +2240,7 @@
       container.innerHTML = '';
       document.getElementById('pageTitle').textContent = 'Gantt';
       document.getElementById('pageBreadcrumb').textContent = 'Timeline';
-      const filtered = currentUser.role === 'manager' ? getFilteredTasks() : getFilteredTasks().filter(t => t.assignee === currentUser.email);
+      const filtered = currentUser.role === 'manager' ? getFilteredTasks() : getFilteredTasks().filter(t => t.assignee === currentUser.email || (t.assignees && t.assignees.includes(currentUser.email)));
       // Determine date range: 14 days starting from the earliest task start date or today
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -2377,9 +2377,12 @@
     function openTask(id) {
       const task = id ? tasks.find(t => t.id === id) : null;
       const isManager = currentUser.role === 'manager';
-      const editable = isManager || (task && task.assignee === currentUser.email);
+      const canEdit = canEditTask(task);
+      // Students can create new tasks (in their own lists) — not just manager
+      const canCreate = isManager || currentUser.role === 'student';
       document.getElementById('modalTitle').textContent = task ? 'Edit Task' : 'New Task';
-      document.getElementById('deleteTaskBtn').classList.toggle('hidden', !isManager || !task);
+      // Delete: manager can delete any; students can delete their own
+      document.getElementById('deleteTaskBtn').classList.toggle('hidden', !(canEdit && task));
       document.getElementById('printNotesBtn').classList.toggle('hidden', !task);
       document.getElementById('duplicateTaskBtn').classList.toggle('hidden', !task);
 
@@ -2394,7 +2397,8 @@
       fillSelect('tCategory', buildCategoryOptions(currentSpaceId), currentFolderId);
       fillSelect('tList', buildListOptionsForCategory(currentSpaceId, currentFolderId), currentListId);
       fillSelect('tStatus', statuses, (task && statuses.includes(task.status)) ? task.status : 'Planned');
-      document.getElementById('tAssignee').value = task ? (task.assignee || (task.assignees && task.assignees[0]) || '') : (studentOptions[0] && studentOptions[0].value || '');
+      // Students creating a new task default assignee to themselves
+      document.getElementById('tAssignee').value = task ? (task.assignee || (task.assignees && task.assignees[0]) || '') : (isManager ? (studentOptions[0] && studentOptions[0].value || '') : currentUser.email);
       fillSelect('tPriority', priorities, (task && priorities.includes(task.priority)) ? task.priority : 'Medium');
       document.getElementById('tRepeat').value = task ? (task.repeat || '') : '';
 
@@ -2422,13 +2426,22 @@
       document.getElementById('tNotes').value = task ? task.notes : '';
       document.getElementById('tReminder').value = task ? String(task.reminder || 0) : '0';
 
-      ['tTitle','tSpace','tCategory','tList','tAssignee','tPriority','tRepeat','tStartDate','tStartTime','tDueDate','tDueTime','tDesc'].forEach(id => {
-        document.getElementById(id).disabled = !isManager;
+      // Students editing their own tasks can edit all fields.
+      // Students creating new tasks can edit all fields.
+      // Assignee field: students can only assign to themselves (locked).
+      const fieldsEnabled = canEdit || canCreate;
+      ['tTitle','tSpace','tCategory','tList','tPriority','tRepeat','tStartDate','tStartTime','tDueDate','tDueTime','tDesc'].forEach(id => {
+        document.getElementById(id).disabled = !fieldsEnabled;
       });
-      document.getElementById('tStatus').disabled = !editable;
-      document.getElementById('tNotes').disabled = !editable;
-      document.getElementById('tReminder').disabled = !editable;
-      document.getElementById('saveTaskBtn').style.display = editable ? 'inline-block' : 'none';
+      // Assignee: manager can change; students locked to themselves
+      document.getElementById('tAssignee').disabled = !isManager;
+      if (!isManager) {
+        document.getElementById('tAssignee').value = currentUser.email;
+      }
+      document.getElementById('tStatus').disabled = !fieldsEnabled;
+      document.getElementById('tNotes').disabled = !fieldsEnabled;
+      document.getElementById('tReminder').disabled = !fieldsEnabled;
+      document.getElementById('saveTaskBtn').style.display = fieldsEnabled ? 'inline-block' : 'none';
 
       // Reset to details tab
       switchModalTab('details');
@@ -2702,7 +2715,7 @@
       }
       // Populate select with other tasks
       const otherTasks = tasks.filter(t => t.id !== task.id && !deps.includes(t.id));
-      const visibleOthers = currentUser.role === 'manager' ? otherTasks : otherTasks.filter(t => t.assignee === currentUser.email);
+      const visibleOthers = currentUser.role === 'manager' ? otherTasks : otherTasks.filter(t => t.assignee === currentUser.email || (t.assignees && t.assignees.includes(currentUser.email)));
       const opt = document.createElement('option');
       opt.value = '';
       opt.textContent = '-- Select a task to add as dependency --';
@@ -2885,8 +2898,12 @@
     function saveTask() {
       const id = document.getElementById('modal').dataset.id;
       const task = id ? tasks.find(t => t.id === id) : null;
-      const editable = currentUser.role === 'manager' || (task && task.assignees && task.assignees.includes(currentUser.email));
-      if (!editable) { closeModal(); return; }
+      const isManager = currentUser.role === 'manager';
+      // Students can edit tasks assigned to them; manager can edit anything.
+      const canEdit = isManager || canEditTask(task);
+      // Students can create new tasks (in their own lists); manager can create anywhere.
+      const canCreate = isManager || (currentUser.role === 'student' && !task);
+      if (!canEdit && !canCreate) { closeModal(); return; }
       const values = {
         title: document.getElementById('tTitle').value.trim(),
         listId: document.getElementById('tList').value,
@@ -2903,21 +2920,26 @@
         notes: document.getElementById('tNotes').value.trim()
       };
       if (!values.title) { alert('Title is required'); return; }
+      // Students can only assign to themselves; force it.
+      if (!isManager) {
+        values.assignee = currentUser.email;
+      }
+      // Students can only create tasks in their own lists.
+      if (!isManager && !canManageList(values.listId)) {
+        alert('You can only create tasks in your own lists.');
+        return;
+      }
 
       let updated;
       if (id) {
         const idx = tasks.findIndex(t => t.id === id);
         if (idx !== -1) {
           const oldStatus = tasks[idx].status;
-          if (currentUser.role === 'manager') {
-            updated = { ...tasks[idx], ...values, id: id };
-            tasks[idx] = updated;
-          } else {
-            tasks[idx].status = values.status;
-            tasks[idx].notes = values.notes;
-            tasks[idx].reminder = values.reminder;
-            updated = tasks[idx];
-          }
+          // Students editing their own tasks can update all fields.
+          updated = { ...tasks[idx], ...values, id: id };
+          // Keep assignees array in sync
+          updated.assignees = values.assignee ? [values.assignee] : (tasks[idx].assignees || []);
+          tasks[idx] = updated;
           // Activity log
           if (oldStatus !== values.status) addActivity(updated, 'changed status from ' + oldStatus + ' to ' + values.status);
           // Run automations
@@ -2927,7 +2949,7 @@
           }
           if (values.status !== oldStatus) runAutomations('status-changed', updated);
         }
-      } else if (currentUser.role === 'manager') {
+      } else if (canCreate) {
         updated = { ...values, id: generateId(), subtasks: [], comments: [], timeLogged: 0, customFields: {}, dependencies: [], tags: [], assignees: [values.assignee].filter(Boolean), attachments: [], activity: [], attendance: '' };
         tasks.push(updated);
         addActivity(updated, 'created task');
@@ -3016,7 +3038,7 @@
       const id = document.getElementById('modal').dataset.id;
       const task = tasks.find(t => t.id === id);
       if (!id || !task) return;
-      if (currentUser.role !== 'manager' && task.assignee !== currentUser.email) return;
+      if (!canEditTask(task)) return;
       if (confirm('Delete this task?')) {
         tasks = tasks.filter(t => t.id !== id);
         saveTasks();
@@ -3082,6 +3104,19 @@
       return !!(found && getStudentSpaces(currentUser.email).some(s => s.id === found.space.id));
     }
 
+    // Students have full control over tasks assigned to them.
+    function canEditTask(task) {
+      if (!task) return false;
+      if (currentUser.role === 'manager') return true;
+      return task.assignee === currentUser.email || (task.assignees && task.assignees.includes(currentUser.email));
+    }
+
+    // Students can create tasks in lists that belong to their own spaces.
+    function canCreateTaskInList(listId) {
+      if (currentUser.role === 'manager') return true;
+      return canManageList(listId);
+    }
+
     function promptAddFolderToSpace(spaceId, studentEmail) {
       if (!canManageSpace(spaceId, studentEmail)) { alert('You can only manage your own categories.'); return; }
       const studentSpaces = getStudentSpaces(studentEmail);
@@ -3098,21 +3133,33 @@
     }
 
     function promptAddFolder() {
-      const students = Object.entries(userMap).filter(([_, u]) => u.role === 'student');
-      const options = students.map(([email, u], i) => (i + 1) + '. ' + u.name).join('\n');
-      const choice = prompt('Add folder for which student?\n' + options);
-      if (!choice) return;
-      const idx = parseInt(choice, 10) - 1;
-      const studentEmail = students[idx] && students[idx][0];
-      if (!studentEmail) { alert('Student not found.'); return; }
-      const studentSpaces = getStudentSpaces(studentEmail);
-      const spaceOptions = studentSpaces.map((s, i) => (i + 1) + '. ' + s.name).join('\n');
-      const spaceChoice = prompt('Add folder to which space?\n' + spaceOptions);
-      if (!spaceChoice) return;
-      const spaceIdx = parseInt(spaceChoice, 10) - 1;
-      const space = studentSpaces[spaceIdx];
-      if (!space) { alert('Space not found.'); return; }
-      promptAddFolderToSpace(space.id, studentEmail);
+      if (currentUser.role === 'manager') {
+        const students = Object.entries(userMap).filter(([_, u]) => u.role === 'student');
+        const options = students.map(([email, u], i) => (i + 1) + '. ' + u.name).join('\n');
+        const choice = prompt('Add folder for which student?\n' + options);
+        if (!choice) return;
+        const idx = parseInt(choice, 10) - 1;
+        const studentEmail = students[idx] && students[idx][0];
+        if (!studentEmail) { alert('Student not found.'); return; }
+        const studentSpaces = getStudentSpaces(studentEmail);
+        const spaceOptions = studentSpaces.map((s, i) => (i + 1) + '. ' + s.name).join('\n');
+        const spaceChoice = prompt('Add folder to which space?\n' + spaceOptions);
+        if (!spaceChoice) return;
+        const spaceIdx = parseInt(spaceChoice, 10) - 1;
+        const space = studentSpaces[spaceIdx];
+        if (!space) { alert('Space not found.'); return; }
+        promptAddFolderToSpace(space.id, studentEmail);
+      } else {
+        // Students: skip student selection, use their own spaces
+        const studentSpaces = getStudentSpaces(currentUser.email);
+        const spaceOptions = studentSpaces.map((s, i) => (i + 1) + '. ' + s.name).join('\n');
+        const spaceChoice = prompt('Add folder to which space?\n' + spaceOptions);
+        if (!spaceChoice) return;
+        const spaceIdx = parseInt(spaceChoice, 10) - 1;
+        const space = studentSpaces[spaceIdx];
+        if (!space) { alert('Space not found.'); return; }
+        promptAddFolderToSpace(space.id, currentUser.email);
+      }
     }
 
     function promptAddSubfolder(parentFolderId) {
@@ -3130,18 +3177,32 @@
     }
 
     function promptAddList() {
-      const allSpaces = getAllSpaces();
-      const spaceId = prompt('Enter space ID:');
-      const space = allSpaces.find(s => s.id === spaceId);
-      if (!space) { alert('Space not found.'); return; }
-      const folderId = prompt('Enter folder ID. Any nested folder in the space is valid.');
-      const found = findFolder(folderId);
-      if (!found || found.space.id !== spaceId) { alert('Folder not found.'); return; }
+      // Build a flat list of all folders (with path) the current user can manage
+      const allSpaces = currentUser.role === 'manager' ? getAllSpaces() : getStudentSpaces(currentUser.email);
+      const folderChoices = [];
+      allSpaces.forEach(space => {
+        (function walk(folders, path) {
+          (folders || []).forEach(folder => {
+            const fullPath = path.concat([space.name, folder.name]).join(' / ');
+            folderChoices.push({ id: folder.id, label: fullPath, spaceId: space.id });
+            walk(folder.folders, path.concat([space.name, folder.name]));
+          });
+        })(space.folders, []);
+      });
+      if (folderChoices.length === 0) { alert('No folders available. Add a folder first.'); return; }
+      const options = folderChoices.map((f, i) => (i + 1) + '. ' + f.label).join('\n');
+      const choice = prompt('Add list to which folder?\n' + options);
+      if (!choice) return;
+      const idx = parseInt(choice, 10) - 1;
+      const selected = folderChoices[idx];
+      if (!selected) { alert('Folder not found.'); return; }
+      const found = findFolder(selected.id);
+      if (!found) { alert('Folder not found.'); return; }
       const name = prompt('List name:');
       if (!name) return;
       found.folder.lists.push({ id: generateId(), name: name.trim() });
       saveSpaces();
-      syncSpaceRowToSupabase(getSpaceOwnerEmail(spaceId));
+      syncSpaceRowToSupabase(getSpaceOwnerEmail(found.space.id));
       renderSidebar();
     }
 
@@ -3174,7 +3235,7 @@
     }
 
     function deleteFolder(folderId) {
-      if (currentUser.role !== 'manager') { alert('Only the manager can delete categories.'); return; }
+      if (!canManageFolder(folderId)) { alert('You can only delete your own categories.'); return; }
       const found = findFolder(folderId);
       if (!found) return;
       if (!confirm('Delete folder "' + found.folder.name + '" and all its lists?')) return;
@@ -3201,7 +3262,7 @@
     }
 
     function deleteList(listId) {
-      if (currentUser.role !== 'manager') { alert('Only the manager can delete categories.'); return; }
+      if (!canManageList(listId)) { alert('You can only delete your own lists.'); return; }
       const found = findList(listId);
       if (!found) return;
       if (!confirm('Delete list "' + found.list.name + '"?')) return;
@@ -3259,7 +3320,7 @@
       const dash = document.getElementById('dashboardView');
       const nav = document.getElementById('calendarNav');
       const quickAdd = document.getElementById('quickAddWrap');
-      const showQuick = currentUser && (currentUser.role === 'manager' || view === 'myTasks');
+      const showQuick = !!currentUser;
       if (view === 'calendar') {
         nav.style.display = 'flex';
         board.style.display = 'none';
@@ -3367,7 +3428,7 @@
     function renderDashboard() {
       const today = toISODate(new Date());
       const filtered = getFilteredTasks();
-      const visibleTasks = currentUser.role === 'manager' ? filtered : filtered.filter(t => t.assignees && t.assignees.includes(currentUser.email));
+      const visibleTasks = currentUser.role === 'manager' ? filtered : filtered.filter(t => t.assignee === currentUser.email || (t.assignees && t.assignees.includes(currentUser.email)));
       const todayTasks = visibleTasks.filter(t => {
         const d = getDisplayDate(t);
         return d === today;
@@ -3505,7 +3566,7 @@
 
     function getVisibleCalendarTasks() {
       let visible = getFilteredTasks();
-      if (currentUser.role !== 'manager') visible = visible.filter(t => t.assignees && t.assignees.includes(currentUser.email));
+      if (currentUser.role !== 'manager') visible = visible.filter(t => t.assignee === currentUser.email || (t.assignees && t.assignees.includes(currentUser.email)));
       return visible;
     }
 
@@ -4137,14 +4198,15 @@
         e.preventDefault();
         const raw = e.target.value.trim();
         if (!raw) return;
-        if (currentUser.role !== 'manager') { alert('Only the manager can create tasks.'); return; }
         const listId = activeListId;
         if (!listId) { alert('Select a list from the sidebar first.'); return; }
+        // Students can only create tasks in their own lists
+        if (currentUser.role !== 'manager' && !canManageList(listId)) { alert('You can only create tasks in your own lists.'); return; }
         const parsed = parseQuickAdd(raw);
         const studentOptions = Object.entries(userMap).filter(([_, u]) => u.role === 'student').map(([email]) => email);
         const listInfo = findList(listId);
-        let assignee = studentOptions[0];
-        if (listInfo) {
+        let assignee = currentUser.role === 'manager' ? (studentOptions[0] || currentUser.email) : currentUser.email;
+        if (currentUser.role === 'manager' && listInfo) {
           const ownerEmail = getSpaceOwnerEmail(listInfo.space.id);
           if (ownerEmail && studentOptions.includes(ownerEmail)) assignee = ownerEmail;
         }
