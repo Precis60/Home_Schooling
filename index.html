@@ -171,6 +171,9 @@
     .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-bottom: 24px; }
     .dash-card { background: var(--card); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); transition: var(--transition); }
     .dash-card:hover { box-shadow: var(--shadow-md); }
+    .dash-card-clickable { cursor: pointer; }
+    .dash-card-clickable:hover { border-color: var(--primary); transform: translateY(-2px); }
+    .dash-card-clickable:active { transform: translateY(0); }
     .dash-card .dash-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
     .dash-card .dash-value { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
     .dash-card .dash-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
@@ -456,6 +459,9 @@
     .progress-section h3 { margin: 0 0 16px; font-size: 15px; font-weight: 700; }
     .progress-row { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
     .progress-row:last-child { margin-bottom: 0; }
+    .progress-row-clickable { cursor: pointer; padding: 6px 8px; margin: -6px -8px 12px; border-radius: var(--radius-sm); transition: var(--transition); }
+    .progress-row-clickable:hover { background: var(--bg-secondary); }
+    .progress-row-clickable:last-child { margin-bottom: 0; }
     .progress-label { width: 160px; font-size: 13px; font-weight: 600; color: var(--text-secondary); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .progress-track { flex: 1; height: 8px; background: var(--border-light); border-radius: 4px; overflow: hidden; }
     .progress-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
@@ -3450,22 +3456,22 @@
         <h2 style="margin:0 0 6px;font-size:24px;font-weight:800;letter-spacing:-0.02em">${greeting}, ${currentUser.name.split(' ')[0]}</h2>
         <p style="margin:0 0 24px;color:var(--muted);font-size:14px">${DAY_NAMES[now.getDay()]}, ${now.getDate()} ${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}</p>
         <div class="dash-grid">
-          <div class="dash-card">
+          <div class="dash-card dash-card-clickable" id="dashTodayCard">
             <div class="dash-label">Today's Events</div>
             <div class="dash-value">${todayTasks.length}</div>
             <div class="dash-sub">${completedToday.length} completed</div>
           </div>
-          <div class="dash-card">
+          <div class="dash-card dash-card-clickable" id="dashUpcomingCard">
             <div class="dash-label">Upcoming</div>
             <div class="dash-value">${upcomingTasks.length}</div>
             <div class="dash-sub">In the next days</div>
           </div>
-          <div class="dash-card">
+          <div class="dash-card dash-card-clickable" id="dashOverdueCard">
             <div class="dash-label">Overdue</div>
             <div class="dash-value" style="color:${overdueTasks.length > 0 ? 'var(--danger)' : 'var(--text)'}">${overdueTasks.length}</div>
             <div class="dash-sub">Needs attention</div>
           </div>
-          <div class="dash-card">
+          <div class="dash-card dash-card-clickable" id="dashActiveCard">
             <div class="dash-label">Total Active</div>
             <div class="dash-value">${visibleTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length}</div>
             <div class="dash-sub">Across all lists</div>
@@ -3481,6 +3487,22 @@
         </div>
         ${overdueTasks.length > 0 ? `<div class="dash-section"><h3 style="color:var(--danger)">Overdue</h3><div class="dash-timeline" id="dashOverdue"></div></div>` : ''}
       `;
+      // Make stat cards clickable to navigate to relevant views
+      document.getElementById('dashTodayCard').addEventListener('click', () => {
+        // Go to calendar day view for today
+        calendarDate = new Date();
+        setCalendarMode('day');
+        switchView('calendar');
+      });
+      document.getElementById('dashUpcomingCard').addEventListener('click', () => {
+        switchView('myTasks');
+      });
+      document.getElementById('dashOverdueCard').addEventListener('click', () => {
+        switchView('myTasks');
+      });
+      document.getElementById('dashActiveCard').addEventListener('click', () => {
+        switchView('list');
+      });
       // Render progress bars per list
       const progressWrap = document.getElementById('dashProgress');
       const allLists = getAllLists();
@@ -3496,11 +3518,24 @@
           const pct = listTasks.length ? Math.round(completed / listTasks.length * 100) : 0;
           const color = pct === 100 ? 'var(--success)' : pct > 50 ? 'var(--primary)' : 'var(--warning)';
           const row = document.createElement('div');
-          row.className = 'progress-row';
+          row.className = 'progress-row progress-row-clickable';
+          row.title = 'Click to open ' + list.name;
           row.innerHTML =
             '<div class="progress-label" title="' + escapeHtml(list.name) + '">' + escapeHtml(list.name) + '</div>' +
             '<div class="progress-track"><div class="progress-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
             '<div class="progress-count">' + completed + '/' + listTasks.length + '</div>';
+          row.addEventListener('click', () => {
+            activeListId = list.id;
+            const found = findList(list.id);
+            if (found) {
+              document.getElementById('pageTitle').textContent = found.list.name;
+              const path = [found.space.name]
+                .concat(found.ancestors.map(f => f.name), [found.folder.name, found.list.name])
+                .join(' / ');
+              document.getElementById('pageBreadcrumb').textContent = path;
+            }
+            switchView('list');
+          });
           progressWrap.appendChild(row);
         });
       }
