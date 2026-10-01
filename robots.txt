@@ -1,0 +1,6 @@
+# Private home-schooling app. Do not index.
+# Compliant crawlers only read robots.txt from the host root.
+# On GitHub project Pages this file is served under the project path, so the
+# noindex meta tag in index.html is the control that applies there.
+User-agent: *
+Disallow: /

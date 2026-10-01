@@ -1,22 +1,31 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-// Update this if the manager's login email is ever different.
-const MANAGER_EMAIL = "jamie@projects-consultant.com";
+// GitHub Pages origin for this repo. The browser Origin header has no path,
+// so https://precis60.github.io/Home_Schooling/ is still this origin.
+const PAGES_ORIGIN = "https://precis60.github.io";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+function corsHeadersFor(req: Request): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+  if (req.headers.get("Origin") === PAGES_ORIGIN) {
+    headers["Access-Control-Allow-Origin"] = PAGES_ORIGIN;
+  }
+  return headers;
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = corsHeadersFor(req);
+
+  function json(body: unknown, status = 200) {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -40,8 +49,11 @@ Deno.serve(async (req: Request) => {
     if (userErr || !userData?.user) {
       return json({ error: "Unauthorized: " + (userErr?.message || "no user") }, 401);
     }
-    const callerEmail = (userData.user.email || "").toLowerCase();
-    if (callerEmail !== MANAGER_EMAIL) {
+    // Role lives in app_metadata. user_metadata is editable by the account
+    // holder and must not be used for this check.
+    const callerMeta = userData.user.app_metadata;
+    const callerRole = callerMeta && typeof callerMeta.role === "string" ? callerMeta.role : "";
+    if (callerRole !== "manager") {
       return json({ error: "Forbidden: manager only" }, 403);
     }
 
@@ -58,7 +70,7 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(supabaseUrl, serviceKey, clientOpts);
 
     // Find the existing auth user by current email (paginate through listUsers)
-    let targetUser: { id: string; email?: string } | null = null;
+    let targetUser: { id: string; email?: string; app_metadata?: Record<string, unknown> } | null = null;
     if (currentEmail) {
       let page = 1;
       while (!targetUser) {
@@ -83,7 +95,10 @@ Deno.serve(async (req: Request) => {
       if (createErr) return json({ error: "createUser failed: " + createErr.message }, 500);
       resultUser = { id: created.user!.id, email: created.user!.email };
     } else {
-      const attrs: Record<string, unknown> = { app_metadata: { role: "student" } };
+      const existingMeta = targetUser.app_metadata && typeof targetUser.app_metadata === "object"
+        ? targetUser.app_metadata
+        : {};
+      const attrs: Record<string, unknown> = { app_metadata: { ...existingMeta, role: "student" } };
       if (newEmail && newEmail !== currentEmail) {
         attrs.email = newEmail;
         attrs.email_confirm = true;

@@ -1,1 +1,27 @@
 .devin/mcp_config.local.json
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+id_rsa
+id_ed25519
+id_ecdsa
+credentials.json
+*service-account*.json
+*service_role*
+*service-role*
+
+# Supabase CLI local state (may contain linked project credentials)
+.supabase/
+supabase/.temp/
+supabase/.branches/
+
+# OS and editor cruft
+.DS_Store
+Thumbs.db
