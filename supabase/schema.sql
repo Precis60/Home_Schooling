@@ -1,6 +1,13 @@
 -- Home Schooling & Sports Training Hub - dedicated Supabase schema
--- Run this once in your NEW project's SQL editor (Dashboard > SQL Editor).
+-- Run this once in a NEW project's SQL editor (Dashboard > SQL Editor).
 -- This project must be separate from any other business's Supabase project.
+--
+-- Authorization model:
+--   manager  - full access to hs_spaces and hs_tasks
+--   student  - only the row whose id (spaces) or data.assignee (tasks)
+--              equals the JWT email
+-- The role claim is auth.jwt() -> app_metadata ->> role.
+-- Do not authorize with user_metadata. Users can edit that claim.
 
 -- ---------------------------------------------------------------------------
 -- hs_spaces: one row per student, id = the student's login email.
@@ -81,49 +88,45 @@ create policy "hs_users_select_authenticated" on public.hs_users
   using (true);
 
 -- ---------------------------------------------------------------------------
--- Seed data - your existing categories and tasks, carried over so nothing
--- is lost when you switch this app to the new project. Skip this section if
--- you'd rather start fresh.
+-- Fictional sample data for a brand-new project only.
+-- Skipped automatically when hs_spaces or hs_tasks already have rows, so
+-- re-running this file cannot overwrite or append to a live account.
+-- These addresses and names are placeholders. Do not replace them with
+-- real family names or emails in this repository.
 -- ---------------------------------------------------------------------------
-insert into public.hs_spaces (id, data) values
-('lucas@projects-consultant.com', '[
-  {"id":"home-school-lucas","name":"Home Schooling","folders":[
-    {"id":"math-lucas","name":"Mathematics","folders":[],"lists":[{"id":"fkvtra7wif9mswtno8v","name":"Khan Academy - Mathematics"}]},
-    {"id":"pe-lucas","name":"Physical Education","folders":[],"lists":[]},
-    {"id":"science-lucas","name":"Science","folders":[],"lists":[{"id":"2au0643681rmswtno8v","name":"Khan Academy - Science"}]},
-    {"id":"business-lucas","name":"Business & Legal","folders":[],"lists":[]},
-    {"id":"economics-lucas","name":"Economics & Investment","folders":[],"lists":[]},
-    {"id":"english-lucas","name":"English","folders":[],"lists":[]}
-  ]},
-  {"id":"sporting-lucas","name":"Lucas Anderson''s Activities","folders":[
-    {"id":"sporting-pe-lucas","name":"Physical Education","folders":[],"lists":[
-      {"id":"2s2l6fpyxdgmswtno8v","name":"Morning Exercises"},
-      {"id":"588i0w4b2f6mswtno8v","name":"Midday Sport (UAC Basketball)"}
+insert into public.hs_spaces (id, data)
+select seed.id, seed.data
+from (values
+  ('student.one@example.com', '[
+    {"id":"home-school-student-one","name":"Home Schooling","folders":[
+      {"id":"math-student-one","name":"Mathematics","folders":[],"lists":[{"id":"list-math-student-one","name":"Sample mathematics"}]},
+      {"id":"science-student-one","name":"Science","folders":[],"lists":[{"id":"list-science-student-one","name":"Sample science"}]},
+      {"id":"english-student-one","name":"English","folders":[],"lists":[]}
+    ]},
+    {"id":"sporting-student-one","name":"Alex Example''s Activities","folders":[
+      {"id":"sport-student-one","name":"Physical Education","folders":[],"lists":[
+        {"id":"list-morning-student-one","name":"Morning exercises"},
+        {"id":"list-afternoon-student-one","name":"Sample afternoon sport"}
+      ]}
     ]}
-  ]}
-]'::jsonb)
-on conflict (id) do update set data = excluded.data;
+  ]'::jsonb),
+  ('student.two@example.com', '[
+    {"id":"home-school-student-two","name":"Home Schooling","folders":[
+      {"id":"math-student-two","name":"Mathematics","folders":[],"lists":[{"id":"list-math-student-two","name":"Sample mathematics"}]},
+      {"id":"english-student-two","name":"English","folders":[],"lists":[]}
+    ]},
+    {"id":"sporting-student-two","name":"Sam Example''s Activities","folders":[
+      {"id":"sport-student-two","name":"Physical Education","folders":[],"lists":[]}
+    ]}
+  ]'::jsonb)
+) as seed(id, data)
+where not exists (select 1 from public.hs_spaces);
 
-insert into public.hs_spaces (id, data) values
-('emily@projects-consultant.com', '[
-  {"id":"home-school-emily","name":"Homework","folders":[
-    {"id":"math-emily","name":"Mathematics","folders":[],"lists":[{"id":"0ozmk3he2m1imswtno8v","name":"Khan Academy - Mathematics"}]},
-    {"id":"pe-emily","name":"Physical Education","folders":[],"lists":[]},
-    {"id":"science-emily","name":"Science","folders":[],"lists":[]},
-    {"id":"business-emily","name":"Business & Legal","folders":[],"lists":[]},
-    {"id":"economics-emily","name":"Economics & Investment","folders":[],"lists":[]},
-    {"id":"english-emily","name":"English","folders":[],"lists":[]}
-  ]},
-  {"id":"sporting-emily","name":"Emily Anderson''s Activities","folders":[
-    {"id":"sporting-pe-emily","name":"Physical Education","folders":[],"lists":[]}
-  ]}
-]'::jsonb)
-on conflict (id) do update set data = excluded.data;
-
-insert into public.hs_tasks (id, data) values
-('mlgkqm9q8vmswptnr1', '{"id":"mlgkqm9q8vmswptnr1","desc":"","notes":"","title":"T03W06H01: Khan Academy - Mathematics!","listId":"0ozmk3he2m1imswtno8v","status":"Completed","dueDate":"2026-08-17","dueTime":"12:00","assignee":"emily@projects-consultant.com","priority":"Medium","startDate":"2026-08-17","startTime":"10:00"}'::jsonb),
-('1u1zyukdf4qjmswod42w', '{"id":"1u1zyukdf4qjmswod42w","desc":"","notes":"","title":"T03W06S01: Physical Education - Morning Exercises!","listId":"2s2l6fpyxdgmswtno8v","status":"Completed","dueDate":"2026-08-17","dueTime":"09:30","assignee":"lucas@projects-consultant.com","priority":"Medium","startDate":"2026-08-17","startTime":"08:45"}'::jsonb),
-('0ew4uwir0yvmswo92ax', '{"id":"0ew4uwir0yvmswo92ax","desc":"","notes":"","title":"T03W06S01: Khan Academy - Mathematics!","listId":"fkvtra7wif9mswtno8v","status":"Completed","dueDate":"2026-08-17","dueTime":"11:45","assignee":"lucas@projects-consultant.com","priority":"Medium","startDate":"2026-08-17","startTime":"09:45"}'::jsonb),
-('w60g5ni4tlmswiy1hf', '{"id":"w60g5ni4tlmswiy1hf","desc":"Midday basketball session at UAC.","notes":"Arrived on time. Focused on passing drills and defence. Next session: work on shooting form.","title":"T03W06S01: Physical Education - Midday Sport (UAC Basketball)!","listId":"588i0w4b2f6mswtno8v","status":"Completed","dueDate":"2026-08-17","dueTime":"14:00","assignee":"lucas@projects-consultant.com","priority":"Medium","startDate":"2026-08-17","startTime":"12:00"}'::jsonb),
-('l1l4pup6xn9mswoizxw', '{"id":"l1l4pup6xn9mswoizxw","desc":"","notes":"","title":"T03W06S01: Khan Academy - Science!","listId":"2au0643681rmswtno8v","status":"Planned","dueDate":"2026-08-17","dueTime":"17:00","assignee":"lucas@projects-consultant.com","priority":"Medium","startDate":"2026-08-17","startTime":"15:15"}'::jsonb)
-on conflict (id) do update set data = excluded.data;
+insert into public.hs_tasks (id, data)
+select seed.id, seed.data
+from (values
+  ('sample-task-math-student-two', '{"id":"sample-task-math-student-two","desc":"Example task for a new install.","notes":"","title":"Sample mathematics worksheet","listId":"list-math-student-two","status":"Planned","dueDate":"2026-08-17","dueTime":"12:00","assignee":"student.two@example.com","priority":"Medium","startDate":"2026-08-17","startTime":"10:00"}'::jsonb),
+  ('sample-task-sport-student-one', '{"id":"sample-task-sport-student-one","desc":"Example activity for a new install.","notes":"","title":"Sample afternoon sport","listId":"list-afternoon-student-one","status":"Planned","dueDate":"2026-08-17","dueTime":"14:00","assignee":"student.one@example.com","priority":"Medium","startDate":"2026-08-17","startTime":"13:00"}'::jsonb),
+  ('sample-task-science-student-one', '{"id":"sample-task-science-student-one","desc":"Example task for a new install.","notes":"","title":"Sample science lesson","listId":"list-science-student-one","status":"Planned","dueDate":"2026-08-17","dueTime":"16:00","assignee":"student.one@example.com","priority":"Low","startDate":"2026-08-17","startTime":"15:00"}'::jsonb)
+) as seed(id, data)
+where not exists (select 1 from public.hs_tasks);
