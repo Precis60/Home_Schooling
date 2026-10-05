@@ -192,7 +192,7 @@
     .login-card p { margin: 0 0 22px; color: var(--muted); font-size: 14px; line-height: 1.5; }
     .field { margin-bottom: 16px; }
     .field label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px; color: var(--text-secondary); }
-    .field input, .field select, .field textarea, .subtask-add input, .comment-add textarea, .custom-field-row .cf-name, .custom-field-row .cf-value, .dep-select, .share-link-input, .quick-add-input, .group-by-bar select {
+    .field input, .field select, .field textarea, .subtask-add input, .comment-add textarea, .custom-field-row .cf-name, .custom-field-row .cf-value, .dep-select, .share-link-input, .quick-add-input, .group-by-bar select, .field .assignee-picker-btn {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--border);
@@ -202,13 +202,13 @@
       transition: border-color var(--transition), box-shadow var(--transition);
       font-size: 14.5px;
     }
-    .field input:focus, .field select:focus, .field textarea:focus, .subtask-add input:focus, .comment-add textarea:focus, .quick-add-input:focus, .group-by-bar select:focus {
+    .field input:focus, .field select:focus, .field textarea:focus, .subtask-add input:focus, .comment-add textarea:focus, .quick-add-input:focus, .group-by-bar select:focus, .field .assignee-picker-btn:focus {
       outline: none;
       border-color: var(--primary);
       box-shadow: 0 0 0 4px var(--primary-glow);
     }
     .field textarea { resize: vertical; }
-    .field select, .group-by-bar select, .dep-select {
+    .field select, .group-by-bar select, .dep-select, .field .assignee-picker-btn {
       -webkit-appearance: none;
       -moz-appearance: none;
       appearance: none;
@@ -217,7 +217,7 @@
       background-position: right 12px center;
       padding-right: 32px;
     }
-    body.dark .field select, body.dark .group-by-bar select, body.dark .dep-select {
+    body.dark .field select, body.dark .group-by-bar select, body.dark .dep-select, body.dark .field .assignee-picker-btn {
       background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3e%3cpath fill='%23c2bbb0' d='M6 8.5 1.5 4h9z'/%3e%3c/svg%3e");
     }
     .btn {
@@ -719,6 +719,17 @@
 
     .assignee-pills { display: flex; flex-wrap: wrap; gap: 4px; }
     .assignee-pill { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--primary-light); color: var(--primary); }
+    .field .assignee-picker-btn { display: flex; align-items: center; text-align: left; cursor: pointer; font-weight: 500; }
+    .field .assignee-picker-btn:disabled { cursor: default; opacity: 0.72; }
+    .field .assignee-picker-btn span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .field .assignee-picker-btn span.is-placeholder { color: var(--muted); }
+    .assignee-menu { position: fixed; z-index: 400; max-height: 240px; overflow: auto; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: 6px; }
+    .assignee-menu[hidden] { display: none !important; }
+    .assignee-menu label { display: flex; align-items: center; gap: 10px; margin: 0; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--text); }
+    .assignee-menu label:hover { background: var(--bg-secondary); }
+    .assignee-menu label.selected { background: var(--primary-light); }
+    .assignee-menu input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--primary); cursor: pointer; flex: 0 0 auto; }
+    .assignee-empty { padding: 10px 12px; color: var(--muted); font-size: 13.5px; }
 
     .template-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
     .template-chip { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border); cursor: pointer; transition: var(--transition); }
@@ -1065,11 +1076,10 @@
           </div>
           <div class="field-row">
             <div class="field">
-              <label for="tAssignee">Assignee(s)</label>
-              <input type="hidden" id="tAssignee">
-              <div class="tag-input-wrap" id="assigneeTagsWrap">
-                <input type="text" id="assigneeTagsInput" placeholder="Add assignee...">
-              </div>
+              <label id="tAssigneeLabel" for="tAssigneeButton">Assignee(s)</label>
+              <button type="button" class="assignee-picker-btn" id="tAssigneeButton" aria-haspopup="listbox" aria-expanded="false" aria-controls="assigneeMenu">
+                <span id="tAssigneeSummary" class="is-placeholder">Select assignee…</span>
+              </button>
             </div>
             <div class="field">
               <label for="tRepeat">Repeat</label>
@@ -1357,6 +1367,8 @@
     </div>
   </div>
 
+  <div class="assignee-menu" id="assigneeMenu" role="listbox" aria-multiselectable="true" aria-labelledby="tAssigneeLabel" hidden></div>
+
   <script>
     let userMap = {};
 
@@ -1439,6 +1451,8 @@
     let timeTrackStartTs = null;
     let timeTrackTaskId = null;
     let activeModalTab = 'details';
+    let modalAssignees = [];
+    let assigneeMenuIgnoreScroll = false;
     let searchSelectedIndex = -1;
     let reminderCheckInterval = null;
     let shownReminders = new Set();
@@ -2584,8 +2598,6 @@
       document.getElementById('printNotesBtn').classList.toggle('hidden', !task);
       document.getElementById('duplicateTaskBtn').classList.toggle('hidden', !task);
 
-      const studentOptions = Object.entries(userMap).filter(([email,u]) => u.role === 'student').map(([email,u]) => ({value: email, label: u.name}));
-
       const currentListId = task ? task.listId : activeListId;
       const allSpaces = getAllSpaces();
       const currentSpaceId = getListSpaceId(currentListId) || (allSpaces[0] && allSpaces[0].id);
@@ -2595,8 +2607,6 @@
       fillSelect('tCategory', buildCategoryOptions(currentSpaceId), currentFolderId);
       fillSelect('tList', buildListOptionsForCategory(currentSpaceId, currentFolderId), currentListId);
       fillSelect('tStatus', statuses, (task && statuses.includes(task.status)) ? task.status : 'Planned');
-      // Students creating a new task default assignee to themselves
-      document.getElementById('tAssignee').value = task ? (task.assignee || (task.assignees && task.assignees[0]) || '') : (isManager ? (studentOptions[0] && studentOptions[0].value || '') : currentUser.email);
       fillSelect('tPriority', priorities, (task && priorities.includes(task.priority)) ? task.priority : 'Medium');
       document.getElementById('tRepeat').value = task ? (task.repeat || '') : '';
 
@@ -2631,11 +2641,8 @@
       ['tTitle','tSpace','tCategory','tList','tPriority','tRepeat','tStartDate','tStartTime','tDueDate','tDueTime','tDesc'].forEach(id => {
         document.getElementById(id).disabled = !fieldsEnabled;
       });
-      // Assignee: manager can change; students locked to themselves
-      document.getElementById('tAssignee').disabled = !isManager;
-      if (!isManager) {
-        document.getElementById('tAssignee').value = currentUser.email;
-      }
+      // Assignee: manager picks from the directory; students stay assigned to themselves.
+      renderAssigneePicker(initialAssignees(task, isManager), !isManager || !fieldsEnabled);
       document.getElementById('tStatus').disabled = !fieldsEnabled;
       document.getElementById('tNotes').disabled = !fieldsEnabled;
       document.getElementById('tReminder').disabled = !fieldsEnabled;
@@ -2658,8 +2665,6 @@
       renderCustomFields(task);
       // Render tags
       renderTagsInput(task);
-      // Render multiple assignees
-      renderAssigneeTagsInput(task);
       // Render attendance
       renderAttendance(task);
       // Render attachments
@@ -3004,7 +3009,10 @@
       });
     }
 
-    function closeModal() { document.getElementById('modal').classList.remove('active'); }
+    function closeModal() {
+      closeAssigneeMenu();
+      document.getElementById('modal').classList.remove('active');
+    }
 
     function openSettings() {
       renderSettings();
@@ -3102,11 +3110,28 @@
       // Students can create new tasks (in their own lists); manager can create anywhere.
       const canCreate = isManager || (currentUser.role === 'student' && !task);
       if (!canEdit && !canCreate) { closeModal(); return; }
+      // Managers choose from the directory. Students cannot reassign:
+      // a new task is theirs, and editing keeps the existing assignees.
+      let picked;
+      let assignee;
+      if (isManager) {
+        picked = normalizeAssigneeList(modalAssignees);
+        const previousAssignee = task ? String(task.assignee || '').toLowerCase() : '';
+        assignee = (previousAssignee && picked.includes(previousAssignee)) ? previousAssignee : (picked[0] || '');
+      } else if (task) {
+        picked = (Array.isArray(task.assignees) && task.assignees.length)
+          ? task.assignees.slice()
+          : (task.assignee ? [task.assignee] : [currentUser.email]);
+        assignee = task.assignee || currentUser.email;
+      } else {
+        picked = normalizeAssigneeList([currentUser.email]);
+        assignee = picked[0] || '';
+      }
       const values = {
         title: document.getElementById('tTitle').value.trim(),
         listId: document.getElementById('tList').value,
         status: document.getElementById('tStatus').value,
-        assignee: document.getElementById('tAssignee').value,
+        assignee: assignee,
         priority: document.getElementById('tPriority').value,
         repeat: document.getElementById('tRepeat').value,
         reminder: parseInt(document.getElementById('tReminder').value, 10) || 0,
@@ -3118,10 +3143,6 @@
         notes: document.getElementById('tNotes').value.trim()
       };
       if (!values.title) { alert('Title is required'); return; }
-      // Students can only assign to themselves; force it.
-      if (!isManager) {
-        values.assignee = currentUser.email;
-      }
       // Students can only create tasks in their own lists.
       if (!isManager && !canManageList(values.listId)) {
         alert('You can only create tasks in your own lists.');
@@ -3133,13 +3154,14 @@
         const idx = tasks.findIndex(t => t.id === id);
         if (idx !== -1) {
           const oldStatus = tasks[idx].status;
+          const previousAssignees = normalizeAssigneeList([tasks[idx].assignee].concat(tasks[idx].assignees || [])).slice().sort().join('|');
           // Students editing their own tasks can update all fields.
           updated = { ...tasks[idx], ...values, id: id };
-          // Keep assignees array in sync
-          updated.assignees = values.assignee ? [values.assignee] : (tasks[idx].assignees || []);
+          updated.assignees = picked.slice();
           tasks[idx] = updated;
           // Activity log
           if (oldStatus !== values.status) addActivity(updated, 'changed status from ' + oldStatus + ' to ' + values.status);
+          if (previousAssignees !== normalizeAssigneeList(picked).slice().sort().join('|')) addActivity(updated, 'updated assignees');
           // Run automations
           if (values.status === 'Completed' && oldStatus !== 'Completed') {
             runAutomations('completed', updated);
@@ -3148,7 +3170,7 @@
           if (values.status !== oldStatus) runAutomations('status-changed', updated);
         }
       } else if (canCreate) {
-        updated = { ...values, id: generateId(), subtasks: [], comments: [], timeLogged: 0, customFields: {}, dependencies: [], tags: [], assignees: [values.assignee].filter(Boolean), attachments: [], activity: [], attendance: '' };
+        updated = { ...values, id: generateId(), subtasks: [], comments: [], timeLogged: 0, customFields: {}, dependencies: [], tags: [], assignees: picked.slice(), attachments: [], activity: [], attendance: '' };
         tasks.push(updated);
         addActivity(updated, 'created task');
       } else {
@@ -4165,6 +4187,8 @@
 
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
+        const assigneeMenu = document.getElementById('assigneeMenu');
+        if (assigneeMenu && !assigneeMenu.hidden) { closeAssigneeMenu(); return; }
         closeAllDropdowns();
         if (document.getElementById('datePickerModal').classList.contains('active')) { closeDatePicker(); return; }
         if (document.getElementById('timePickerModal').classList.contains('active')) { closeTimePicker(); return; }
@@ -5057,50 +5081,164 @@
     }
 
     // ===== Feature 11: Multiple Assignees =====
-    function renderAssigneeTagsInput(task) {
-      const wrap = document.getElementById('assigneeTagsWrap');
-      wrap.querySelectorAll('.assignee-pill').forEach(p => p.remove());
-      const input = document.getElementById('assigneeTagsInput');
-      input.value = '';
-      const students = Object.entries(userMap).filter(([_, u]) => u.role === 'student');
-      (task && task.assignees || []).forEach(email => {
-        const pill = document.createElement('span');
-        pill.className = 'assignee-pill';
-        const name = userMap[email]?.name || email;
-        pill.innerHTML = escapeHtml(name.split(' ')[0]) + ' <span class="tag-remove">&times;</span>';
-        pill.querySelector('.tag-remove').addEventListener('click', () => {
-          if (!task) return;
-          task.assignees = task.assignees.filter(a => a !== email);
-          if (task.assignee === email) task.assignee = task.assignees[0] || '';
-          saveTasks();
-          syncTaskToSupabase(task);
-          renderAssigneeTagsInput(task);
-        });
-        wrap.insertBefore(pill, input);
+    // Assignees are chosen from the private directory (hs_users), not typed in.
+    function normalizeAssigneeList(emails) {
+      const out = [];
+      (emails || []).forEach(email => {
+        const key = String(email || '').trim().toLowerCase();
+        if (key && !out.includes(key)) out.push(key);
       });
-      input.disabled = !task || currentUser.role !== 'manager';
+      return out;
     }
 
-    document.getElementById('assigneeTagsInput').addEventListener('keydown', e => {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      const id = document.getElementById('modal').dataset.id;
-      const task = id ? tasks.find(t => t.id === id) : null;
-      if (!task || currentUser.role !== 'manager') return;
-      const name = e.target.value.trim().toLowerCase();
-      if (!name) return;
-      const student = Object.entries(userMap).find(([email, u]) => u.role === 'student' && (email === name || u.name.toLowerCase() === name || u.name.toLowerCase().includes(name)));
-      if (!student) { alert('Student not found. Try: ' + Object.values(userMap).filter(u => u.role === 'student').map(u => u.name).join(', ')); return; }
-      const email = student[0];
-      if (!Array.isArray(task.assignees)) task.assignees = [];
-      if (!task.assignees.includes(email)) {
-        task.assignees.push(email);
-        if (!task.assignee) task.assignee = email;
-        saveTasks();
-        syncTaskToSupabase(task);
+    function assignableStudents() {
+      return Object.entries(userMap)
+        .filter(([, user]) => user && user.role === 'student')
+        .map(([email, user]) => ({
+          email: String(email).toLowerCase(),
+          name: (user.name && String(user.name).trim()) || 'Student'
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    }
+
+    function assigneeLabel(email) {
+      const key = String(email || '').toLowerCase();
+      const info = userMap[key];
+      if (info && info.name && String(info.name).trim()) return String(info.name).trim();
+      return key || 'Student';
+    }
+
+    function initialAssignees(task, isManager) {
+      if (task) return normalizeAssigneeList([task.assignee].concat(task.assignees || []));
+      if (!isManager) return normalizeAssigneeList([currentUser && currentUser.email]);
+      const listInfo = activeListId ? findList(activeListId) : null;
+      const owner = listInfo ? String(getSpaceOwnerEmail(listInfo.space.id) || '').toLowerCase() : '';
+      const students = assignableStudents();
+      if (owner && students.some(student => student.email === owner)) return [owner];
+      return students[0] ? [students[0].email] : [];
+    }
+
+    function peopleForAssigneePicker(selected) {
+      const people = assignableStudents();
+      selected.forEach(email => {
+        if (!people.some(person => person.email === email)) {
+          people.push({ email, name: assigneeLabel(email) });
+        }
+      });
+      return people;
+    }
+
+    function updateAssigneeSummary() {
+      const summary = document.getElementById('tAssigneeSummary');
+      if (!summary) return;
+      if (!modalAssignees.length) {
+        summary.textContent = 'Select assignee…';
+        summary.classList.add('is-placeholder');
+        return;
       }
-      e.target.value = '';
-      renderAssigneeTagsInput(task);
+      summary.textContent = modalAssignees.map(assigneeLabel).join(', ');
+      summary.classList.remove('is-placeholder');
+    }
+
+    function closeAssigneeMenu() {
+      const menu = document.getElementById('assigneeMenu');
+      const btn = document.getElementById('tAssigneeButton');
+      if (menu) menu.hidden = true;
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+
+    function positionAssigneeMenu() {
+      const btn = document.getElementById('tAssigneeButton');
+      const menu = document.getElementById('assigneeMenu');
+      if (!btn || !menu || menu.hidden) return;
+      const rect = btn.getBoundingClientRect();
+      menu.style.width = rect.width + 'px';
+      menu.style.left = Math.max(8, rect.left) + 'px';
+      const menuHeight = menu.offsetHeight || 0;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = (spaceBelow < menuHeight + 12 && rect.top > menuHeight + 12)
+        ? rect.top - menuHeight - 4
+        : rect.bottom + 4;
+      menu.style.top = Math.max(8, top) + 'px';
+    }
+
+    function openAssigneeMenu() {
+      const btn = document.getElementById('tAssigneeButton');
+      const menu = document.getElementById('assigneeMenu');
+      if (!btn || btn.disabled || !menu || menu.dataset.locked === 'true') return;
+      menu.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      assigneeMenuIgnoreScroll = true;
+      positionAssigneeMenu();
+      requestAnimationFrame(() => { assigneeMenuIgnoreScroll = false; });
+      const first = menu.querySelector('input:not(:disabled)');
+      if (first) first.focus({ preventScroll: true });
+    }
+
+    function renderAssigneePicker(selected, locked) {
+      modalAssignees = normalizeAssigneeList(selected);
+      const menu = document.getElementById('assigneeMenu');
+      const btn = document.getElementById('tAssigneeButton');
+      closeAssigneeMenu();
+      menu.innerHTML = '';
+      menu.dataset.locked = locked ? 'true' : 'false';
+      btn.disabled = !!locked;
+      const people = locked
+        ? modalAssignees.map(email => ({ email, name: assigneeLabel(email) }))
+        : peopleForAssigneePicker(modalAssignees);
+      if (!people.length) {
+        const empty = document.createElement('div');
+        empty.className = 'assignee-empty';
+        empty.textContent = 'No students available to assign.';
+        menu.appendChild(empty);
+      } else {
+        people.forEach(person => {
+          const label = document.createElement('label');
+          label.className = modalAssignees.includes(person.email) ? 'selected' : '';
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.value = person.email;
+          input.checked = modalAssignees.includes(person.email);
+          input.disabled = !!locked;
+          input.setAttribute('role', 'option');
+          input.setAttribute('aria-selected', input.checked ? 'true' : 'false');
+          input.addEventListener('change', () => {
+            if (locked) return;
+            if (input.checked) {
+              if (!modalAssignees.includes(person.email)) modalAssignees.push(person.email);
+            } else {
+              modalAssignees = modalAssignees.filter(email => email !== person.email);
+            }
+            input.setAttribute('aria-selected', input.checked ? 'true' : 'false');
+            label.classList.toggle('selected', input.checked);
+            updateAssigneeSummary();
+          });
+          const text = document.createElement('span');
+          text.textContent = person.name;
+          label.appendChild(input);
+          label.appendChild(text);
+          menu.appendChild(label);
+        });
+      }
+      updateAssigneeSummary();
+    }
+
+    document.getElementById('tAssigneeButton').addEventListener('click', () => {
+      const menu = document.getElementById('assigneeMenu');
+      if (menu.hidden) openAssigneeMenu();
+      else closeAssigneeMenu();
+    });
+    document.addEventListener('click', e => {
+      const menu = document.getElementById('assigneeMenu');
+      const btn = document.getElementById('tAssigneeButton');
+      if (!menu || menu.hidden) return;
+      if (menu.contains(e.target) || (btn && btn.contains(e.target))) return;
+      closeAssigneeMenu();
+    });
+    window.addEventListener('resize', closeAssigneeMenu);
+    document.querySelector('#modal .modal').addEventListener('scroll', () => {
+      if (assigneeMenuIgnoreScroll) { positionAssigneeMenu(); return; }
+      closeAssigneeMenu();
     });
 
     // ===== Feature 12: Task Templates =====
