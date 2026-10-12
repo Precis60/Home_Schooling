@@ -5,7 +5,7 @@
   "description": "Build tooling for the vendored document editor. The hub itself is static and does not need a server.",
   "scripts": {
     "build:editor": "esbuild editor/src/index.js --bundle --minify --format=iife --global-name=HSEditor --outfile=vendor/hs-editor.js --legal-comments=none --banner:js=\"/* Home Schooling document editor. TipTap 2.26.1 (MIT), DOMPurify 3.2.6 (Apache-2.0), JSZip 3.10.1 (MIT). Source: editor/src. */\"",
-    "test": "node --test editor/sanitize.test.js editor/docx.test.js editor/documents-ui.test.js"
+    "test": "node --test editor/sanitize.test.js editor/docx.test.js editor/documents-ui.test.js editor/lesson-links.test.js"
   },
   "dependencies": {
     "@tiptap/core": "2.26.1",

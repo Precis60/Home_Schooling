@@ -521,6 +521,22 @@
     .calendar-event strong { display: block; font-weight: 600; line-height: 1.25; }
     .calendar-event .event-time { font-size: 10.5px; opacity: 0.8; margin-top: 2px; }
     .calendar-event .event-desc { font-size: 10.5px; opacity: 0.85; margin-top: 4px; line-height: 1.3; }
+    .doc-count { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0; vertical-align: middle; }
+    .doc-count svg { width: 12px; height: 12px; flex: 0 0 auto; }
+    .lesson-docs-hint { margin: -4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .lesson-docs-list { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; padding: 0; list-style: none; }
+    .lesson-docs-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+    .lesson-docs-open { flex: 1 1 140px; min-width: 0; text-align: left; border: 0; background: transparent; color: var(--text); font-weight: 650; padding: 4px 0; min-height: 40px; }
+    .lesson-docs-open:hover { color: var(--primary); }
+    .lesson-docs-meta { color: var(--muted); font-size: 12px; font-weight: 650; }
+    .lesson-docs-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .lesson-docs-actions[hidden], .lesson-docs-results[hidden] { display: none !important; }
+    .lesson-docs-actions input[type="search"] { flex: 1 1 180px; min-width: 0; min-height: 40px; border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: var(--radius-sm); padding: 8px 10px; }
+    .lesson-docs-results { margin-top: 8px; max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); }
+    .lesson-docs-result { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--border-light); background: transparent; color: var(--text); padding: 10px 12px; min-height: 44px; font-weight: 650; }
+    .lesson-docs-result:hover { background: var(--bg-secondary); }
+    .lesson-docs-result small { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .lesson-docs-empty { color: var(--muted); font-size: 13px; padding: 2px 0 8px; }
     .calendar-event.priority-high { border-color: var(--danger); }
     .calendar-event.priority-medium { border-color: var(--warning); }
     .calendar-event.priority-low { border-color: var(--success); }
@@ -1049,6 +1065,7 @@
             <button type="button" class="doc-tool" id="docsFindClose">Close</button>
             <span id="docsFindStatus"></span>
           </div>
+          <div id="docsLessons" class="docs-lessons" hidden></div>
           <p id="docsReadOnly" class="docs-readonly" hidden>You can read this document. Editing is turned off.</p>
           <div class="docs-page-scroll">
             <div class="docs-sheet"><div id="docsSurface"></div></div>
@@ -1207,6 +1224,17 @@
             <label for="tNotes">Notes</label>
             <textarea id="tNotes" rows="4" placeholder="Add notes, observations, or lesson feedback here..."></textarea>
           </div>
+        </div>
+        <div class="field-section" id="lessonDocsSection">
+          <div class="section-title">Documents</div>
+          <p class="lesson-docs-hint">Link documents for this lesson. A person only sees a linked document if they could already open it.</p>
+          <ul id="lessonDocsList" class="lesson-docs-list"></ul>
+          <div class="lesson-docs-actions" id="lessonDocsAdd">
+            <input id="lessonDocsSearch" type="search" placeholder="Search documents to link" aria-label="Search documents to link" autocomplete="off">
+            <button type="button" class="btn btn-sm btn-ghost" id="lessonDocsBrowse">Browse</button>
+            <button type="button" class="btn btn-sm" id="lessonDocsCreate">New document</button>
+          </div>
+          <div id="lessonDocsResults" class="lesson-docs-results" hidden></div>
         </div>
         </div>
 
@@ -1440,6 +1468,7 @@
   <div class="assignee-menu" id="assigneeMenu" role="listbox" aria-multiselectable="true" aria-labelledby="tAssigneeLabel" hidden></div>
 
   <script src="vendor/hs-editor.js"></script>
+  <script src="lesson-documents.js"></script>
   <script src="documents.js"></script>
   <script>
     let userMap = {};
@@ -1518,6 +1547,12 @@
     let currentUser = null;
     let activeListId = null;
     let tasks = [];
+    let lessonDocLinks = [];
+    let lessonDocCatalog = [];
+    let lessonDocShares = [];
+    let lessonDocsBusy = false;
+    let lessonDocsDirty = false;
+    let lessonDocsRequest = 0;
     let spacesByStudent = {};
     let currentView = 'dashboard';
     let calendarMode = 'month';
@@ -2250,7 +2285,7 @@
       const snippet = (task.notes ? task.notes : (task.desc || '')).substring(0, 60);
       const full = (task.notes ? task.notes : (task.desc || ''));
       const noteText = full.length > 60 ? snippet + '…' : snippet;
-      el.innerHTML = '<strong>' + escapeHtml(task.title) + '</strong>' +
+      el.innerHTML = '<strong>' + escapeHtml(task.title) + lessonDocBadge(task.id) + '</strong>' +
         (time ? '<div class="event-time">' + time + '</div>' : '') +
         (noteText ? '<div class="event-desc">' + escapeHtml(noteText) + '</div>' : '');
       if (!allDay) {
@@ -2393,10 +2428,37 @@
       });
     }
 
+    async function upsertTaskRow(task) {
+      if (!task) return false;
+      const { error } = await supabaseClient.from('hs_tasks').upsert({ id: task.id, data: task });
+      if (error) {
+        console.error('Supabase task sync failed', error);
+        return false;
+      }
+      return true;
+    }
+
     function syncTaskToSupabase(task) {
       if (!task) return;
-      Promise.resolve(supabaseClient.from('hs_tasks').upsert({ id: task.id, data: task }))
-        .catch(err => console.error('Supabase task sync failed', err));
+      upsertTaskRow(task);
+    }
+
+    async function loadLessonDocumentLinks() {
+      const { data, error } = await supabaseClient.from('hs_lesson_documents').select('task_id, document_id');
+      if (error) {
+        console.error('Lesson links failed', error);
+        return;
+      }
+      lessonDocLinks = data || [];
+    }
+
+    const LESSON_DOC_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l5 5V20a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 20V5A1.5 1.5 0 0 1 7 3.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3.8V9h5.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+
+    function lessonDocBadge(taskId) {
+      const count = window.HSLessonLinks ? HSLessonLinks.countForTask(lessonDocLinks, taskId) : 0;
+      if (!count) return '';
+      const label = count === 1 ? '1 document' : count + ' documents';
+      return '<span class="doc-count" title="' + label + '">' + LESSON_DOC_ICON + '<span>' + count + '</span></span>';
     }
 
     function renderList() {
@@ -2758,6 +2820,7 @@
       document.getElementById('duplicateTaskBtn').onclick = () => { if (task) duplicateTask(task); };
       document.getElementById('shareTaskBtn').classList.toggle('hidden', !task);
       document.getElementById('modal').dataset.id = id || '';
+      renderLessonDocuments(task);
       document.getElementById('modal').classList.add('active');
     }
 
@@ -3092,6 +3155,11 @@
     function closeModal() {
       closeAssigneeMenu();
       document.getElementById('modal').classList.remove('active');
+      if (lessonDocsDirty && currentView === 'calendar') {
+        lessonDocsDirty = false;
+        renderCalendar();
+      }
+      if (window.HSDocuments && HSDocuments.refreshLessons) HSDocuments.refreshLessons();
     }
 
     function openSettings() {
@@ -3181,15 +3249,13 @@
       await syncTasksFromSupabase();
     }
 
-    function saveTask() {
+    function commitTaskFromForm() {
       const id = document.getElementById('modal').dataset.id;
       const task = id ? tasks.find(t => t.id === id) : null;
       const isManager = currentUser.role === 'manager';
-      // Students can edit tasks assigned to them; manager can edit anything.
       const canEdit = isManager || canEditTask(task);
-      // Students can create new tasks (in their own lists); manager can create anywhere.
       const canCreate = isManager || (currentUser.role === 'student' && !task);
-      if (!canEdit && !canCreate) { closeModal(); return; }
+      if (!canEdit && !canCreate) { closeModal(); return null; }
       // Managers choose from the directory. Students cannot reassign:
       // a new task is theirs, and editing keeps the existing assignees.
       let picked;
@@ -3222,11 +3288,10 @@
         desc: document.getElementById('tDesc').value.trim(),
         notes: document.getElementById('tNotes').value.trim()
       };
-      if (!values.title) { alert('Title is required'); return; }
-      // Students can only create tasks in their own lists.
+      if (!values.title) { alert('Title is required'); return null; }
       if (!isManager && !canManageList(values.listId)) {
         alert('You can only create tasks in your own lists.');
-        return;
+        return null;
       }
 
       let updated;
@@ -3254,16 +3319,316 @@
         tasks.push(updated);
         addActivity(updated, 'created task');
       } else {
-        closeModal(); return;
+        closeModal();
+        return null;
       }
+      if (!updated) return null;
       saveTasks();
-      if (updated) {
-        syncTaskToSupabase(updated);
-      }
+      return updated;
+    }
+
+    function saveTask() {
+      const updated = commitTaskFromForm();
+      if (!updated) return;
+      syncTaskToSupabase(updated);
       renderSidebar();
       render();
       closeModal();
     }
+
+    function canLinkLessonDocuments(task) {
+      if (!currentUser) return false;
+      if (!task) return true;
+      return !!canEditTask(task);
+    }
+
+    function documentOwnerLabel(doc) {
+      const email = String(doc && doc.owner_email || '').toLowerCase();
+      if (currentUser && email === currentUser.email) return 'My documents';
+      const person = userMap[email];
+      return person && person.name ? person.name : 'Student';
+    }
+
+    function ownerForNewLessonDocument(task) {
+      if (currentUser.role !== 'manager') {
+        if (!currentUser.id) {
+          alert('Your login is missing an id, so the document could not be created.');
+          return null;
+        }
+        return { id: currentUser.id, email: currentUser.email };
+      }
+      const email = String(task.assignee || '').toLowerCase();
+      const person = userMap[email];
+      if (!person || !person.authId) {
+        alert('That student login is not linked yet. Save the student once in Settings, then create the document.');
+        return null;
+      }
+      return { id: person.authId, email: email };
+    }
+
+    async function ensureLessonSaved() {
+      const id = document.getElementById('modal').dataset.id;
+      let task = id ? tasks.find(item => item.id === id) : null;
+      const created = !task;
+      if (!task) {
+        task = commitTaskFromForm();
+        if (!task) return null;
+        document.getElementById('modal').dataset.id = task.id;
+        document.getElementById('modalTitle').textContent = 'Edit Task';
+        document.getElementById('deleteTaskBtn').classList.toggle('hidden', !canEditTask(task));
+        document.getElementById('printNotesBtn').classList.remove('hidden');
+        document.getElementById('duplicateTaskBtn').classList.remove('hidden');
+        document.getElementById('shareTaskBtn').classList.remove('hidden');
+        updateShareLink(task);
+      }
+      const ok = await upsertTaskRow(task);
+      if (!ok) {
+        alert('The lesson could not be saved, so the document was not linked.');
+        return null;
+      }
+      if (created) {
+        renderSidebar();
+        render();
+      }
+      return task;
+    }
+
+    async function insertLessonLink(taskId, documentId) {
+      if (lessonDocLinks.some(link => link.task_id === taskId && link.document_id === documentId)) return true;
+      const { error } = await supabaseClient.from('hs_lesson_documents').insert({ task_id: taskId, document_id: documentId });
+      if (error && error.code !== '23505') {
+        alert('That document could not be linked.');
+        console.error('Lesson link failed', error);
+        return false;
+      }
+      lessonDocLinks.push({ task_id: taskId, document_id: documentId });
+      lessonDocsDirty = true;
+      return true;
+    }
+
+    function currentLessonTask() {
+      const id = document.getElementById('modal').dataset.id;
+      return id ? tasks.find(item => item.id === id) || null : null;
+    }
+
+    function renderLessonDocResults(task) {
+      const box = document.getElementById('lessonDocsResults');
+      const browseBtn = document.getElementById('lessonDocsBrowse');
+      const query = document.getElementById('lessonDocsSearch').value;
+      const browsing = box.dataset.browse === '1';
+      if (browseBtn) browseBtn.textContent = browsing ? 'Hide' : 'Browse';
+      box.innerHTML = '';
+      if (!canLinkLessonDocuments(task) || (!browsing && !query.trim())) {
+        box.hidden = true;
+        return;
+      }
+      const taskId = task && task.id;
+      const linked = new Set(lessonDocLinks.filter(link => link.task_id === taskId).map(link => link.document_id));
+      const matches = (window.HSLessonLinks ? HSLessonLinks.filterDocuments(lessonDocCatalog, query) : lessonDocCatalog.slice())
+        .filter(doc => !linked.has(doc.id));
+      box.hidden = false;
+      if (!matches.length) {
+        const empty = document.createElement('div');
+        empty.className = 'lesson-docs-result';
+        empty.textContent = 'No matching documents.';
+        box.appendChild(empty);
+        return;
+      }
+      matches.slice(0, 40).forEach(doc => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'lesson-docs-result';
+        const title = document.createElement('span');
+        title.textContent = doc.title || 'Untitled document';
+        const meta = document.createElement('small');
+        meta.textContent = documentOwnerLabel(doc);
+        button.appendChild(title);
+        button.appendChild(meta);
+        button.addEventListener('click', () => linkLessonDocumentById(doc.id));
+        box.appendChild(button);
+      });
+      if (matches.length > 40) {
+        const more = document.createElement('div');
+        more.className = 'lesson-docs-result';
+        more.textContent = 'Keep typing to narrow the list.';
+        box.appendChild(more);
+      }
+    }
+
+    function appendLessonDocRow(list, task, doc) {
+      const row = document.createElement('li');
+      row.className = 'lesson-docs-row';
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'lesson-docs-open';
+      open.textContent = doc.title || 'Untitled document';
+      open.addEventListener('click', () => openLessonDocument(doc.id));
+      row.appendChild(open);
+      if (currentUser && currentUser.role === 'manager' && task && window.HSLessonLinks && !HSLessonLinks.assigneeCanSeeDocument(doc, task, lessonDocShares)) {
+        const note = document.createElement('span');
+        note.className = 'lesson-docs-meta';
+        note.textContent = 'Not visible to the assignee';
+        row.appendChild(note);
+      }
+      if (canLinkLessonDocuments(task)) {
+        const unlink = document.createElement('button');
+        unlink.type = 'button';
+        unlink.className = 'btn btn-sm btn-ghost';
+        unlink.textContent = 'Unlink';
+        unlink.setAttribute('aria-label', 'Unlink ' + (doc.title || 'document'));
+        unlink.addEventListener('click', () => unlinkLessonDocument(task.id, doc.id));
+        row.appendChild(unlink);
+      }
+      list.appendChild(row);
+    }
+
+    async function renderLessonDocuments(task, options) {
+      const requestId = ++lessonDocsRequest;
+      const list = document.getElementById('lessonDocsList');
+      const add = document.getElementById('lessonDocsAdd');
+      const canLink = canLinkLessonDocuments(task);
+      if (add) add.hidden = !canLink;
+      if (!options || !options.keepCatalog) {
+        document.getElementById('lessonDocsSearch').value = '';
+        const box = document.getElementById('lessonDocsResults');
+        box.dataset.browse = '';
+        box.hidden = true;
+        list.innerHTML = '';
+        const loading = document.createElement('li');
+        loading.className = 'lesson-docs-empty';
+        loading.textContent = 'Loading documents…';
+        list.appendChild(loading);
+        const [docs, shares] = await Promise.all([
+          supabaseClient.from('hs_documents').select('id, title, owner_email, owner_id').order('title'),
+          supabaseClient.from('hs_document_shares').select('document_id, shared_with_email'),
+        ]);
+        if (requestId !== lessonDocsRequest) return;
+        if (docs.error) {
+          list.innerHTML = '';
+          const err = document.createElement('li');
+          err.className = 'lesson-docs-empty';
+          err.textContent = 'Documents could not be loaded.';
+          list.appendChild(err);
+          console.error('Document catalog failed', docs.error);
+          return;
+        }
+        lessonDocCatalog = docs.data || [];
+        if (!shares.error) lessonDocShares = shares.data || [];
+      }
+      if (requestId !== lessonDocsRequest) return;
+      const taskId = task && task.id;
+      const linkedIds = lessonDocLinks.filter(link => link.task_id === taskId).map(link => link.document_id);
+      list.innerHTML = '';
+      if (!linkedIds.length) {
+        const empty = document.createElement('li');
+        empty.className = 'lesson-docs-empty';
+        empty.textContent = canLink ? 'No documents linked yet.' : 'No documents linked.';
+        list.appendChild(empty);
+      } else {
+        linkedIds.forEach(documentId => {
+          const doc = lessonDocCatalog.find(item => item.id === documentId) || { id: documentId, title: 'Document', owner_email: '' };
+          appendLessonDocRow(list, task, doc);
+        });
+      }
+      renderLessonDocResults(task);
+    }
+
+    async function linkLessonDocumentById(documentId) {
+      if (lessonDocsBusy) return;
+      lessonDocsBusy = true;
+      try {
+        const task = await ensureLessonSaved();
+        if (!task) return;
+        const linked = await insertLessonLink(task.id, documentId);
+        if (!linked) return;
+        document.getElementById('lessonDocsSearch').value = '';
+        document.getElementById('lessonDocsResults').dataset.browse = '';
+        await renderLessonDocuments(tasks.find(item => item.id === task.id) || task, { keepCatalog: true });
+      } finally {
+        lessonDocsBusy = false;
+      }
+    }
+
+    async function unlinkLessonDocument(taskId, documentId) {
+      if (lessonDocsBusy || !taskId) return;
+      lessonDocsBusy = true;
+      try {
+        const { error } = await supabaseClient.from('hs_lesson_documents').delete().eq('task_id', taskId).eq('document_id', documentId);
+        if (error) {
+          alert('That document could not be unlinked.');
+          console.error('Lesson unlink failed', error);
+          return;
+        }
+        lessonDocLinks = lessonDocLinks.filter(link => !(link.task_id === taskId && link.document_id === documentId));
+        lessonDocsDirty = true;
+        const task = tasks.find(item => item.id === taskId) || null;
+        await renderLessonDocuments(task, { keepCatalog: true });
+      } finally {
+        lessonDocsBusy = false;
+      }
+    }
+
+    async function createLinkedLessonDocument() {
+      if (lessonDocsBusy) return;
+      lessonDocsBusy = true;
+      try {
+        const task = await ensureLessonSaved();
+        if (!task) return;
+        const owner = ownerForNewLessonDocument(task);
+        if (!owner) return;
+        const title = String(task.title || 'Untitled document').trim().slice(0, 200) || 'Untitled document';
+        const inserted = await supabaseClient.from('hs_documents').insert({
+          title: title,
+          body_html: '<p></p>',
+          folder_id: null,
+          owner_id: owner.id,
+          owner_email: owner.email,
+        }).select('id, title, owner_email, owner_id').single();
+        if (inserted.error || !inserted.data) {
+          alert('The document could not be created.');
+          console.error('Lesson document insert failed', inserted.error);
+          return;
+        }
+        lessonDocCatalog.push(inserted.data);
+        const linked = await insertLessonLink(task.id, inserted.data.id);
+        if (!linked) return;
+        await renderLessonDocuments(tasks.find(item => item.id === task.id) || task, { keepCatalog: true });
+      } finally {
+        lessonDocsBusy = false;
+      }
+    }
+
+    async function openLessonDocument(documentId) {
+      const existingId = document.getElementById('modal').dataset.id;
+      let task = existingId ? tasks.find(item => item.id === existingId) : null;
+      if (task) {
+        task = commitTaskFromForm();
+        if (!task) return;
+        const ok = await upsertTaskRow(task);
+        if (!ok) {
+          alert('The lesson could not be saved, so the document was not opened.');
+          return;
+        }
+      } else {
+        task = await ensureLessonSaved();
+        if (!task) return;
+      }
+      closeModal();
+      switchView('documents', { keepDocument: true });
+      if (window.HSDocuments && HSDocuments.openDocument) await HSDocuments.openDocument(documentId);
+    }
+
+    document.getElementById('taskForm').addEventListener('submit', event => event.preventDefault());
+    document.getElementById('lessonDocsSearch').addEventListener('input', () => renderLessonDocResults(currentLessonTask()));
+    document.getElementById('lessonDocsSearch').addEventListener('keydown', event => {
+      if (event.key === 'Enter') event.preventDefault();
+    });
+    document.getElementById('lessonDocsBrowse').addEventListener('click', () => {
+      const box = document.getElementById('lessonDocsResults');
+      box.dataset.browse = box.dataset.browse === '1' ? '' : '1';
+      renderLessonDocResults(currentLessonTask());
+    });
+    document.getElementById('lessonDocsCreate').addEventListener('click', () => createLinkedLessonDocument());
 
     function generateRecurringInstance(task) {
       if (!task.repeat || !task.startDate) return;
@@ -3341,6 +3706,8 @@
       if (!canEditTask(task)) return;
       if (confirm('Delete this task?')) {
         tasks = tasks.filter(t => t.id !== id);
+        lessonDocLinks = lessonDocLinks.filter(link => link.task_id !== id);
+        lessonDocsDirty = true;
         saveTasks();
         Promise.resolve(supabaseClient.from('hs_tasks').delete().eq('id', id)).catch(err => console.error('Supabase task delete failed', err));
         renderSidebar();
@@ -3593,7 +3960,7 @@
       return set;
     }
 
-    function switchView(view) {
+    function switchView(view, options) {
       const previousView = currentView;
       currentView = view;
       document.body.classList.toggle('view-documents', view === 'documents');
@@ -3721,7 +4088,7 @@
         cal.classList.remove('active');
         dash.classList.remove('active');
         if (quickAdd) quickAdd.style.display = 'none';
-        if (window.HSDocuments) HSDocuments.open();
+        if (window.HSDocuments && !(options && options.keepDocument)) HSDocuments.open();
       } else {
         nav.style.display = 'none';
         board.style.display = 'block';
@@ -4036,7 +4403,7 @@
       el.style.backgroundColor = color.bg;
       el.style.borderLeftColor = color.border;
       el.style.color = color.fg;
-      el.innerHTML = '<div>' + escapeHtml(task.title) + '</div>' +
+      el.innerHTML = '<div>' + escapeHtml(task.title) + lessonDocBadge(task.id) + '</div>' +
         (time ? '<div class="time">' + time + '</div>' : '') +
         '<div><span class="badge priority-' + task.priority.toLowerCase() + '">' + task.priority + '</span></div>';
       el.addEventListener('click', () => openTask(task.id));
@@ -5607,6 +5974,16 @@
         getUser: () => currentUser,
         getDirectory: () => userMap,
         setPageHeading,
+        getTasks: () => tasks,
+        openTask(id) {
+          const task = tasks.find(item => item.id === id);
+          if (task) openTask(task.id);
+        },
+        onLinksChanged() {
+          loadLessonDocumentLinks().then(() => {
+            if (currentView === 'calendar') renderCalendar();
+          });
+        },
       });
     }
 
@@ -5629,6 +6006,7 @@
         setViews();
         await loadSpaces();
         await loadTasks();
+        await loadLessonDocumentLinks();
         renderSidebar();
         switchView('dashboard');
         startReminderChecker();

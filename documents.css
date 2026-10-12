@@ -126,6 +126,37 @@ body.view-documents #calendarNav { display: none !important; }
   border-bottom: 1px solid var(--border);
   background: var(--bg);
 }
+.docs-lessons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.docs-lessons[hidden] { display: none !important; }
+.docs-lessons-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.docs-lesson-chip {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 10px;
+  min-height: 36px;
+  max-width: 100%;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 650;
+}
+.docs-lesson-chip:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); color: var(--primary); }
 .docs-title {
   flex: 1 1 220px;
   min-width: 0;

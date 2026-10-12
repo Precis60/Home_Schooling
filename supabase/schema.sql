@@ -3,10 +3,11 @@
 -- This project must be separate from any other business's Supabase project.
 --
 -- Authorization model:
---   manager  - full access to hs_spaces, hs_tasks, and documents
+--   manager  - full access to hs_spaces, hs_tasks, documents, and lesson links
 --   student  - only the row whose id (spaces) or data.assignee (tasks)
 --              equals the JWT email. Documents: their own rows, plus
 --              documents a manager has shared with that email.
+--              Lesson links: only when they can already read both sides.
 -- The role claim is auth.jwt() -> app_metadata ->> role.
 -- Do not authorize with user_metadata. Users can edit that claim.
 
@@ -652,3 +653,76 @@ set data = directory.data || coalesce((
     and u.email is not null
 ), '{}'::jsonb)
 where directory.id = 'main';
+
+-- ---------------------------------------------------------------------------
+-- hs_lesson_documents: many-to-many between calendar lessons and documents.
+-- Deleting either side deletes the link only. A caller can see or change a
+-- link only when they can already read both the lesson and the document.
+-- ---------------------------------------------------------------------------
+create table if not exists public.hs_lesson_documents (
+  task_id text not null references public.hs_tasks (id) on delete cascade,
+  document_id uuid not null references public.hs_documents (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (task_id, document_id)
+);
+
+create index if not exists hs_lesson_documents_document_idx
+  on public.hs_lesson_documents (document_id);
+
+alter table public.hs_lesson_documents enable row level security;
+
+drop policy if exists "hs_lesson_documents manager all" on public.hs_lesson_documents;
+create policy "hs_lesson_documents manager all" on public.hs_lesson_documents
+  for all
+  to authenticated
+  using ((select public.hs_is_manager()))
+  with check ((select public.hs_is_manager()));
+
+drop policy if exists "hs_lesson_documents select visible" on public.hs_lesson_documents;
+create policy "hs_lesson_documents select visible" on public.hs_lesson_documents
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.hs_tasks as lesson
+      where lesson.id = hs_lesson_documents.task_id
+    )
+    and exists (
+      select 1 from public.hs_documents as doc
+      where doc.id = hs_lesson_documents.document_id
+    )
+  );
+
+drop policy if exists "hs_lesson_documents insert visible" on public.hs_lesson_documents;
+create policy "hs_lesson_documents insert visible" on public.hs_lesson_documents
+  for insert
+  to authenticated
+  with check (
+    exists (
+      select 1 from public.hs_tasks as lesson
+      where lesson.id = hs_lesson_documents.task_id
+    )
+    and exists (
+      select 1 from public.hs_documents as doc
+      where doc.id = hs_lesson_documents.document_id
+    )
+  );
+
+drop policy if exists "hs_lesson_documents delete visible" on public.hs_lesson_documents;
+create policy "hs_lesson_documents delete visible" on public.hs_lesson_documents
+  for delete
+  to authenticated
+  using (
+    exists (
+      select 1 from public.hs_tasks as lesson
+      where lesson.id = hs_lesson_documents.task_id
+    )
+    and exists (
+      select 1 from public.hs_documents as doc
+      where doc.id = hs_lesson_documents.document_id
+    )
+  );
+
+revoke all on table public.hs_lesson_documents from public, anon;
+grant select, insert, delete on table public.hs_lesson_documents to authenticated;
+revoke update, truncate, trigger, references on table public.hs_lesson_documents from authenticated;
