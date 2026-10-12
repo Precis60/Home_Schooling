@@ -25,3 +25,6 @@ supabase/.branches/
 # OS and editor cruft
 .DS_Store
 Thumbs.db
+
+# Local install for the vendored editor build
+node_modules/
