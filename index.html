@@ -811,7 +811,8 @@
       .sidebar-backdrop.open { display: block; }
       .app.active { flex-direction: column; }
       .main { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
-      .mobile-nav { display: flex; }
+      .mobile-nav { display: flex; overflow-x: auto; justify-content: flex-start; }
+      .mobile-nav button { flex: 1 0 auto; min-width: 64px; font-size: 10px; padding-left: 4px; padding-right: 4px; }
       .sidebar-toggle { display: flex; }
       .header { padding: 12px 14px; flex-direction: column; align-items: stretch; gap: 10px; }
       .header-lead { flex-basis: auto; }
@@ -858,14 +859,19 @@
     }
     @media print {
       body * { visibility: hidden; }
-      #printArea, #printArea * { visibility: visible; }
-      #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+      body.printing-document #docPrint,
+      body.printing-document #docPrint * { visibility: visible; }
+      body.printing-document #docPrint { position: absolute; left: 0; top: 0; width: 100%; }
+      body:not(.printing-document) #printArea,
+      body:not(.printing-document) #printArea * { visibility: visible; }
+      body:not(.printing-document) #printArea { position: absolute; left: 0; top: 0; width: 100%; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
     }
 
   </style>
+  <link rel="stylesheet" href="documents.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
@@ -882,7 +888,7 @@
         <h1>Lessons, training, and the week ahead.</h1>
         <p class="login-lede">Spaces, tasks, goals, and the schedule — the same workspace for managers and students.</p>
         <ul class="login-points">
-          <li>Board, list, calendar, and timeline</li>
+          <li>Board, list, calendar, and documents</li>
           <li>Goals, attendance, and workload</li>
           <li>Light and dark, including on a phone</li>
         </ul>
@@ -920,7 +926,8 @@
             <span class="brand-sub">Hub</span>
           </div>
         </div>
-        <button id="dashboardBtn" class="dashboard-btn active">Dashboard</button>
+        <button id="dashboardBtn" class="dashboard-btn active" type="button">Dashboard</button>
+        <button id="documentsBtn" class="dashboard-btn" type="button">Documents</button>
       </div>
       <div class="sidebar-tree" id="sidebarTree"></div>
       <div class="sidebar-actions" id="sidebarActions">
@@ -940,6 +947,7 @@
           </div>
           <div class="view-switcher" id="viewSwitcher">
             <button type="button" id="viewDashboard" class="active">Dashboard</button>
+            <button type="button" id="viewDocuments">Documents</button>
             <button type="button" id="viewMyTasks">My Tasks</button>
             <button type="button" id="viewList">List</button>
             <button type="button" id="viewBoard">Board</button>
@@ -999,6 +1007,66 @@
       <div class="calendar" id="calendarView">
         <div id="calendarGrid"></div>
       </div>
+      <div class="documents-view" id="documentsView">
+        <div class="docs-library" id="docsLibrary">
+          <aside class="docs-folders" id="docsFolders" aria-label="Folders"></aside>
+          <div class="docs-main">
+            <div class="docs-library-bar">
+              <label class="docs-library-picker" id="docsLibraryPickerWrap">Library
+                <select id="docsLibraryPicker" aria-label="Document library"></select>
+              </label>
+              <input id="docsSearch" type="search" placeholder="Search by title" aria-label="Search documents by title" autocomplete="off">
+              <button type="button" class="btn btn-sm btn-ghost" id="docsNewFolder">New folder</button>
+              <button type="button" class="btn btn-sm" id="docsNewDoc">New document</button>
+            </div>
+            <p id="docsError" class="docs-error" hidden></p>
+            <div id="docsList" class="docs-list"></div>
+          </div>
+        </div>
+        <div class="docs-editor" id="docsEditor" hidden>
+          <div class="docs-editor-top">
+            <button type="button" class="btn btn-sm btn-ghost" id="docsBack">Back</button>
+            <input id="docsTitle" class="docs-title" maxlength="200" aria-label="Document title" autocomplete="off">
+            <span id="docsSaveState" class="docs-save-state" aria-live="polite">Saved</span>
+            <div class="docs-editor-actions">
+              <button type="button" class="btn btn-sm btn-ghost" id="docsSave">Save</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="docsDuplicate">Duplicate</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="docsMove">Move</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="docsShare">Share</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="docsExportDocx">Word</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="docsExportPdf" title="Opens the print dialog. Choose Save as PDF.">PDF</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="docsPrint">Print</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="docsDelete">Delete</button>
+            </div>
+          </div>
+          <div class="docs-wordbar" id="docsWordbar" role="toolbar" aria-label="Formatting"></div>
+          <div class="docs-find" id="docsFind" hidden>
+            <input id="docsFindQuery" type="search" placeholder="Find" aria-label="Find">
+            <input id="docsReplaceQuery" type="text" placeholder="Replace" aria-label="Replace with">
+            <button type="button" class="doc-tool" id="docsFindNext">Next</button>
+            <button type="button" class="doc-tool" id="docsReplace">Replace</button>
+            <button type="button" class="doc-tool" id="docsReplaceAll">All</button>
+            <button type="button" class="doc-tool" id="docsFindClose">Close</button>
+            <span id="docsFindStatus"></span>
+          </div>
+          <p id="docsReadOnly" class="docs-readonly" hidden>You can read this document. Editing is turned off.</p>
+          <div class="docs-page-scroll">
+            <div class="docs-sheet"><div id="docsSurface"></div></div>
+          </div>
+          <div class="docs-status"><span id="docsWordCount">0 words</span></div>
+        </div>
+        <div class="docs-dialog" id="docsDialog" hidden>
+          <div class="docs-dialog-card" role="dialog" aria-modal="true" aria-labelledby="docsDialogTitle">
+            <h3 id="docsDialogTitle"></h3>
+            <div id="docsDialogBody"></div>
+            <div class="docs-dialog-actions">
+              <button type="button" class="btn btn-ghost" id="docsDialogCancel">Cancel</button>
+              <button type="button" class="btn" id="docsDialogOk">Save</button>
+            </div>
+          </div>
+        </div>
+        <input id="docsImageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+      </div>
       <div class="filter-bar" id="filterBar">
         <div class="filter-dropdown" id="spaceDropdown">
           <button type="button" class="filter-dropdown-btn" id="spaceDropdownBtn">Spaces <span class="chev">&#9656;</span></button>
@@ -1020,6 +1088,7 @@
       <button type="button" data-view="board"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="5" height="16" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="9.5" y="4" width="5" height="10" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="15.5" y="4" width="5" height="13" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>Board</button>
       <button type="button" data-view="calendar"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Calendar</button>
       <button type="button" data-view="goals"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>Goals</button>
+      <button type="button" data-view="documents"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l5 5V20a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 20V5A1.5 1.5 0 0 1 7 3.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3.8V9h5.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Documents</button>
     </nav>
   </div>
 
@@ -1250,6 +1319,7 @@
   </div>
 
   <div id="printArea" class="pdf-preview" style="display:none"></div>
+  <div id="docPrint" class="doc-print" aria-hidden="true"></div>
 
   <div id="settingsModal" class="modal-overlay">
     <div class="modal" style="max-width:560px">
@@ -1369,6 +1439,8 @@
 
   <div class="assignee-menu" id="assigneeMenu" role="listbox" aria-multiselectable="true" aria-labelledby="tAssigneeLabel" hidden></div>
 
+  <script src="vendor/hs-editor.js"></script>
+  <script src="documents.js"></script>
   <script>
     let userMap = {};
 
@@ -1392,7 +1464,11 @@
             if (!key || !info || typeof info !== 'object') return;
             const role = info.role === 'manager' ? 'manager' : 'student';
             const fallback = role === 'manager' ? 'Manager' : 'Student';
-            merged[key] = { name: (info.name && String(info.name).trim()) || fallback, role };
+            merged[key] = {
+              name: (info.name && String(info.name).trim()) || fallback,
+              role,
+              authId: typeof info.auth_id === 'string' ? info.auth_id : '',
+            };
           });
         }
       } catch (err) { console.error('Failed to load user directory', err); }
@@ -1420,7 +1496,11 @@
       if (!email || !role) return null;
       const existing = userMap[email];
       const name = (existing && existing.name) || (role === 'manager' ? 'Manager' : 'Student');
-      userMap[email] = { name, role };
+      userMap[email] = {
+        name,
+        role,
+        authId: authUser.id || (existing && existing.authId) || '',
+      };
       return Object.assign({}, authUser, { name, role, email });
     }
     const statuses = ['Planned', 'Delayed', 'In Progress', 'Cancelled', 'Completed'];
@@ -3514,8 +3594,14 @@
     }
 
     function switchView(view) {
+      const previousView = currentView;
       currentView = view;
+      document.body.classList.toggle('view-documents', view === 'documents');
+      document.getElementById('documentsView').classList.toggle('active', view === 'documents');
+      if (previousView === 'documents' && view !== 'documents' && window.HSDocuments) HSDocuments.leave();
       document.getElementById('dashboardBtn').classList.toggle('active', view === 'dashboard');
+      document.getElementById('documentsBtn').classList.toggle('active', view === 'documents');
+      document.getElementById('viewDocuments').classList.toggle('active', view === 'documents');
       document.getElementById('viewBoard').classList.toggle('active', view === 'board');
       document.getElementById('viewList').classList.toggle('active', view === 'list');
       document.getElementById('viewCalendar').classList.toggle('active', view === 'calendar');
@@ -3624,6 +3710,18 @@
         dash.classList.remove('active');
         if (quickAdd) quickAdd.style.display = 'none';
         renderGoals();
+      } else if (view === 'documents') {
+        nav.style.display = 'none';
+        board.style.display = 'none';
+        listView.classList.remove('active');
+        ganttView.classList.remove('active');
+        myTasksView.classList.remove('active');
+        workloadView.classList.remove('active');
+        goalsView.style.display = 'none';
+        cal.classList.remove('active');
+        dash.classList.remove('active');
+        if (quickAdd) quickAdd.style.display = 'none';
+        if (window.HSDocuments) HSDocuments.open();
       } else {
         nav.style.display = 'none';
         board.style.display = 'block';
@@ -3864,7 +3962,7 @@
 
     function renderFilterBar() {
       const bar = document.getElementById('filterBar');
-      if (!currentUser) {
+      if (!currentUser || currentView === 'documents') {
         bar.classList.remove('active');
         return;
       }
@@ -4166,7 +4264,9 @@
     document.getElementById('viewWorkload').addEventListener('click', () => switchView('workload'));
     document.getElementById('viewGoals').addEventListener('click', () => switchView('goals'));
     document.getElementById('viewDashboard').addEventListener('click', () => switchView('dashboard'));
+    document.getElementById('viewDocuments').addEventListener('click', () => switchView('documents'));
     document.getElementById('dashboardBtn').addEventListener('click', () => { switchView('dashboard'); closeMobileSidebar(); });
+    document.getElementById('documentsBtn').addEventListener('click', () => { switchView('documents'); closeMobileSidebar(); });
     document.getElementById('viewCalendar').addEventListener('click', () => switchView('calendar'));
     document.getElementById('calDay').addEventListener('click', () => setCalendarMode('day'));
     document.getElementById('calWeek').addEventListener('click', () => setCalendarMode('week'));
@@ -4701,7 +4801,7 @@
 
     function renderSavedViewsBar() {
       const bar = document.getElementById('savedViewsBar');
-      if (!currentUser || savedViews.length === 0) { bar.style.display = 'none'; return; }
+      if (!currentUser || currentView === 'documents' || savedViews.length === 0) { bar.style.display = 'none'; return; }
       bar.style.display = 'flex';
       bar.innerHTML = '';
       savedViews.forEach((sv, idx) => {
@@ -5500,6 +5600,15 @@
 
     // Report button
     document.getElementById('reportBtn').addEventListener('click', generateReport);
+
+    if (window.HSDocuments) {
+      HSDocuments.mount({
+        supabase: supabaseClient,
+        getUser: () => currentUser,
+        getDirectory: () => userMap,
+        setPageHeading,
+      });
+    }
 
     async function init() {
       loadTheme();

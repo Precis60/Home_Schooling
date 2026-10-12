@@ -20,11 +20,18 @@ it at any other Supabase project.
 
 1. Open **SQL Editor** in the new project.
 2. Paste the contents of `supabase/schema.sql` (in this repo) and run it.
-   This creates `hs_spaces`, `hs_tasks`, and `hs_users` with Row Level
-   Security:
-   - a **manager** can read and write every row
+   This creates `hs_spaces`, `hs_tasks`, `hs_users`, the document tables
+   (`hs_doc_folders`, `hs_documents`, `hs_document_shares`), and a private
+   Storage bucket `hs-document-images`, with Row Level Security:
+   - a **manager** can read and write every row, including every document
    - a **student** can read and write only their own rows
+   - a **student** can also read a document a manager has shared with them,
+     and can edit it only when that share says `edit`
    - the role is taken from `app_metadata`, never from `user_metadata`
+
+   Document images stay in the private bucket. The browser never receives
+   a service-role key. Paths look like
+   `{owner-email}/{document-id}/{file-id}.png`.
 
    On an empty project the script also inserts fictional `example.com`
    sample rows. If the tables already have data, that sample insert is
@@ -63,9 +70,12 @@ change a student's email, password, or display name. Display names are
 stored in the private `hs_users` row, not in this repository.)
 
 Changing a live login email is a manual dashboard or Settings-tab action.
-Do not delete the Auth user to scrub an address: the space row id and
-task assignee have to move with the email, and Settings does that move.
-Deleting the user does not revoke tokens that are already issued.
+Do not delete the Auth user to scrub an address: the space row id, task
+assignee, and document owner email have to move with the email, and
+Settings does that move (including private document images). Deleting the
+user does not revoke tokens that are already issued. Saving a student in
+Settings also stores that login's id on the private directory row so the
+manager can file documents in the student's library.
 
 ## 4. Deploy the Edge Function
 
