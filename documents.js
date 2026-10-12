@@ -5,6 +5,8 @@
   let folders = [];
   let documents = [];
   let shares = [];
+  let lessonLinks = [];
+  let lessonToken = 0;
   let libraryEmail = '';
   let selectedFolderId = null;
   let openDoc = null;
@@ -146,10 +148,11 @@
   async function loadAll() {
     const token = ++loadToken;
     const client = ctx.supabase;
-    const [folderRes, docRes, shareRes] = await Promise.all([
+    const [folderRes, docRes, shareRes, linkRes] = await Promise.all([
       client.from('hs_doc_folders').select('id, owner_id, owner_email, parent_id, name, updated_at').order('name'),
       client.from('hs_documents').select('id, owner_id, owner_email, folder_id, title, updated_at').order('updated_at', { ascending: false }),
       client.from('hs_document_shares').select('document_id, shared_with_email, permission'),
+      client.from('hs_lesson_documents').select('task_id, document_id'),
     ]);
     if (token !== loadToken) return false;
     const error = folderRes.error || docRes.error || shareRes.error;
@@ -161,6 +164,8 @@
     folders = folderRes.data || [];
     documents = docRes.data || [];
     shares = shareRes.data || [];
+    lessonLinks = linkRes.error ? [] : (linkRes.data || []);
+    if (linkRes.error) console.error('Lesson links failed', linkRes.error);
     setError('');
     return true;
   }
@@ -303,6 +308,8 @@
       const access = permissionFor(doc);
       if (access === 'view') bits.push('View only');
       if (access === 'edit' && doc.owner_id !== me().id) bits.push('Can edit');
+      const lessonCount = lessonLinks.filter(link => link.document_id === doc.id).length;
+      if (lessonCount) bits.push(lessonCount === 1 ? '1 lesson' : lessonCount + ' lessons');
       if (when) bits.push(when);
       meta.textContent = bits.join(' · ');
       text.appendChild(title);
@@ -640,6 +647,47 @@
     setSaveState('Saved', 'is-saved');
     refreshToolbar();
     ctx.setPageHeading(data.title || 'Document', 'Documents');
+    await renderLinkedLessons(data.id);
+  }
+
+  function lessonTasks() {
+    return ctx.getTasks ? (ctx.getTasks() || []) : [];
+  }
+
+  async function renderLinkedLessons(docId) {
+    const el = $('docsLessons');
+    const token = ++lessonToken;
+    if (!el) return;
+    el.innerHTML = '';
+    el.hidden = true;
+    if (!docId || !ctx.supabase) return;
+    const { data, error } = await ctx.supabase.from('hs_lesson_documents').select('task_id, document_id').eq('document_id', docId);
+    if (token !== lessonToken || !openDoc || openDoc.id !== docId) return;
+    if (error) {
+      console.error('Lesson links failed', error);
+      return;
+    }
+    const rows = data || [];
+    lessonLinks = lessonLinks.filter(link => link.document_id !== docId).concat(rows);
+    const shown = window.HSLessonLinks
+      ? window.HSLessonLinks.lessonsForDocument(rows, lessonTasks(), docId)
+      : rows.map(link => ({ id: link.task_id, label: 'Lesson' }));
+    if (!shown.length) return;
+    const label = document.createElement('span');
+    label.className = 'docs-lessons-label';
+    label.textContent = 'Lessons';
+    el.appendChild(label);
+    shown.forEach(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'docs-lesson-chip';
+      button.textContent = item.label;
+      button.addEventListener('click', () => {
+        if (ctx.openTask) ctx.openTask(item.id);
+      });
+      el.appendChild(button);
+    });
+    el.hidden = false;
   }
 
   async function uploadImages(files) {
@@ -917,6 +965,8 @@
       destroyEditor();
       showLibraryPane();
     }
+    lessonLinks = lessonLinks.filter(link => link.document_id !== doc.id);
+    if (ctx.onLinksChanged) ctx.onLinksChanged();
     await loadAll();
     renderLibrary();
   }
@@ -1112,6 +1162,8 @@
     if (ok) renderLibrary();
   }
 
+  const showDocument = openDocument;
+
   window.HSDocuments = {
     mount(next) {
       ctx = next;
@@ -1123,6 +1175,13 @@
       if (!me()) return;
       if (!libraryEmail) libraryEmail = me().email;
       showLibrary();
+    },
+    openDocument(id) {
+      return showDocument(id);
+    },
+    refreshLessons() {
+      if (!openDoc || $('docsEditor').hidden) return Promise.resolve();
+      return renderLinkedLessons(openDoc.id);
     },
     leave() {
       const snapshot = capture();

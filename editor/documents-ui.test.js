@@ -37,6 +37,7 @@ function dom() {
         <button id="docsFindClose" type="button"></button>
         <span id="docsFindStatus"></span>
       </div>
+      <div id="docsLessons" hidden></div>
       <p id="docsReadOnly" hidden></p>
       <div id="docsSurface"></div>
       <span id="docsWordCount"></span>
@@ -60,6 +61,7 @@ function dom() {
     window.document.body.appendChild(script);
   }
   install(readFileSync(new URL('../vendor/hs-editor.js', import.meta.url), 'utf8'));
+  install(readFileSync(new URL('../lesson-documents.js', import.meta.url), 'utf8'));
   install(readFileSync(new URL('../documents.js', import.meta.url), 'utf8'));
   return window;
 }
@@ -104,7 +106,13 @@ function client(state) {
         return { data: row || null, error: row ? null : { message: 'missing' } };
       },
       then(resolve, reject) {
-        const data = table === 'hs_doc_folders' ? state.folders : table === 'hs_documents' ? state.documents : state.shares;
+        let data = [];
+        if (table === 'hs_doc_folders') data = state.folders;
+        else if (table === 'hs_documents') data = state.documents;
+        else if (table === 'hs_document_shares') data = state.shares;
+        else if (table === 'hs_lesson_documents') {
+          data = (state.lessonLinks || []).filter(link => filters.every(([column, value]) => link[column] === value));
+        }
         return Promise.resolve({ data, error: null }).then(resolve, reject);
       },
     };
@@ -134,6 +142,8 @@ function mount(window, state, user) {
     setPageHeading(title, crumb) {
       state.heading = [title, crumb];
     },
+    getTasks: () => state.tasks || [],
+    openTask(id) { state.openedTask = id; },
   });
 }
 
@@ -244,4 +254,38 @@ test('a view-only share opens read-only and hides editing controls', async () =>
   assert.equal(doc.getElementById('docsWordbar').hidden, true);
   assert.equal(doc.getElementById('docsTitle').readOnly, true);
   assert.equal(doc.getElementById('docsShare').hidden, true);
+});
+
+test('an open document lists only the lessons linked to it', async () => {
+  const window = dom();
+  const state = {
+    folders: [],
+    documents: [
+      { id: DOC_ID, owner_id: OWNER, owner_email: 'student.one@example.com', folder_id: null, title: 'Algebra notes', updated_at: '2026-10-12T00:00:00.000Z', body_html: '<p>Hello</p>' },
+    ],
+    shares: [],
+    lessonLinks: [
+      { task_id: 'lesson-1', document_id: DOC_ID },
+      { task_id: 'hidden-lesson', document_id: '22222222-2222-4222-8222-222222222222' },
+    ],
+    tasks: [{ id: 'lesson-1', title: 'Fractions', startDate: '2026-10-14' }],
+    inserts: [],
+    updates: [],
+    deletes: [],
+    upserts: [],
+    directory: {},
+    heading: [],
+    openedTask: '',
+  };
+  mount(window, state, student);
+  window.HSDocuments.open();
+  await new Promise(resolve => setTimeout(resolve, 30));
+  const doc = window.document;
+  assert.match(doc.querySelector('.docs-card-meta').textContent, /1 lesson/);
+  doc.querySelector('.docs-card button').click();
+  await new Promise(resolve => setTimeout(resolve, 40));
+  const chips = Array.from(doc.querySelectorAll('.docs-lesson-chip')).map(node => node.textContent);
+  assert.deepEqual(chips, ['Fractions · 2026-10-14']);
+  doc.querySelector('.docs-lesson-chip').click();
+  assert.equal(state.openedTask, 'lesson-1');
 });
