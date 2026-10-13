@@ -22,6 +22,20 @@ test('a lesson only counts a document the assignee can already open', () => {
   assert.equal(links.assigneeCanSeeDocument(shared, { assignee: 'student.two@example.com' }, []), true);
   assert.equal(links.assigneeCanSeeDocument(shared, { assignees: ['student.two@example.com'] }, []), true);
   assert.equal(links.assigneeCanSeeDocument(null, task, []), false);
+  const nested = { id: 'doc-3', title: 'Worksheet', owner_email: 'manager@example.com', folder_id: 'child' };
+  const context = {
+    folders: [
+      { id: 'root', parent_id: null, owner_email: 'manager@example.com' },
+      { id: 'child', parent_id: 'root', owner_email: 'manager@example.com' },
+      { id: 'private', parent_id: null, owner_email: 'manager@example.com' },
+    ],
+    folderShares: [{ folder_id: 'root', shared_with_email: 'student.one@example.com', permission: 'edit' }],
+  };
+  assert.equal(links.assigneeCanSeeDocument(nested, task, [], context), true);
+  assert.equal(links.assigneeCanSeeDocument({ id: 'doc-4', owner_email: 'manager@example.com', folder_id: 'private' }, task, [], context), false);
+  assert.equal(links.assigneeCanSeeFile({ id: 'file-1', name: 'notes.pdf', owner_email: 'manager@example.com', folder_id: 'child' }, task, context), true);
+  assert.equal(links.assigneeCanSeeFile({ id: 'file-2', name: 'secret.pdf', owner_email: 'manager@example.com', folder_id: 'private' }, task, context), false);
+  assert.equal(links.assigneeCanSeeFile({ id: 'file-3', name: 'mine.pdf', owner_email: 'student.one@example.com', folder_id: null }, task, context), true);
 });
 
 test('search matches titles and does not invent documents', () => {
@@ -51,8 +65,16 @@ test('the lesson modal and document view are wired to the link helper', () => {
   assert.match(html, /id="lessonDocsSearch"/);
   assert.match(html, /id="lessonDocsCreate"/);
   assert.match(html, /hs_lesson_documents/);
+  assert.match(html, /hs_lesson_files/);
+  assert.match(html, /id="docsUpload"/);
+  assert.match(html, /id="lessonFilesSearch"/);
+  assert.match(html, /50 MB max/);
   assert.match(docs, /hs_lesson_documents/);
+  assert.match(docs, /hs_folder_shares/);
+  assert.match(docs, /createSignedUrl/);
+  assert.match(docs, /hs-files/);
   assert.match(docs, /docsLessons/);
   assert.match(css, /\.docs-lessons\[hidden\]/);
+  assert.match(css, /\.docs-preview\[hidden\]/);
   assert.match(html, /\.lesson-docs-results\[hidden\]/);
 });

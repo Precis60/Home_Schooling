@@ -21,21 +21,29 @@ it at any other Supabase project.
 1. Open **SQL Editor** in the new project.
 2. Paste the contents of `supabase/schema.sql` (in this repo) and run it.
    This creates `hs_spaces`, `hs_tasks`, `hs_users`, the document tables
-   (`hs_doc_folders`, `hs_documents`, `hs_document_shares`), the lesson
-   link table `hs_lesson_documents`, and a private Storage bucket
-   `hs-document-images`, with Row Level Security:
-   - a **manager** can read and write every row, including every document
+   (`hs_doc_folders`, `hs_documents`, `hs_document_shares`, `hs_folder_shares`),
+   the file table `hs_files`, the lesson link tables `hs_lesson_documents`
+   and `hs_lesson_files`, and two private Storage buckets
+   (`hs-document-images` and `hs-files`), with Row Level Security:
+   - a **manager** can read and write every row, including every document and file
    - a **student** can read and write only their own rows
    - a **student** can also read a document a manager has shared with them,
      and can edit it only when that share says `edit`
-   - a lesson-document link is visible only when that person can already
-     read both the lesson and the document. Linking does not share either side
-   - deleting a lesson or a document removes its links and leaves the other side
+   - a **folder** can be shared with a student as `view` or `edit`. That
+     share covers the folder and everything inside it (subfolders, documents,
+     and files). `edit` includes upload, rename, move, and delete. `view`
+     can open and download only
+   - uploaded files live in the private `hs-files` bucket (50 MB each).
+     The browser uses short-lived signed URLs. The bucket is not public
+   - a lesson link (document or file) is visible only when that person can
+     already read both the lesson and the item. Linking does not share either side
+   - deleting a lesson, document, or file removes its links and leaves the other side
    - the role is taken from `app_metadata`, never from `user_metadata`
 
-   Document images stay in the private bucket. The browser never receives
-   a service-role key. Paths look like
-   `{owner-email}/{document-id}/{file-id}.png`.
+   Document images stay in the private image bucket. The browser never
+   receives a service-role key. Image paths look like
+   `{owner-email}/{document-id}/{file-id}.png`. Uploaded files are stored
+   under their file id only.
 
    On an empty project the script also inserts fictional `example.com`
    sample rows. If the tables already have data, that sample insert is

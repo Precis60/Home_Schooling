@@ -13,6 +13,8 @@ function dom() {
       <input id="docsSearch">
       <button id="docsNewFolder" type="button"></button>
       <button id="docsNewDoc" type="button"></button>
+      <button id="docsUpload" type="button"></button>
+      <span id="docsFileLimit">50 MB max</span>
       <p id="docsError" hidden></p>
       <div id="docsList"></div>
     </div>
@@ -49,6 +51,13 @@ function dom() {
       <button id="docsDialogOk" type="button"></button>
     </div>
     <input id="docsImageInput" type="file">
+    <input id="docsFileInput" type="file">
+    <div id="docsPreview" hidden>
+      <h3 id="docsPreviewTitle"></h3>
+      <div id="docsPreviewBody"></div>
+      <button id="docsPreviewDownload" type="button"></button>
+      <button id="docsPreviewClose" type="button"></button>
+    </div>
     <div id="docPrint"></div>
   </body></html>`;
   const window = new JSDOM(markup, {
@@ -90,11 +99,15 @@ function client(state) {
         state.inserts.push({ table, row });
         const inserted = {
           ...row,
-          id: table === 'hs_documents' ? DOC_ID : '11111111-1111-4111-8111-' + String(state.inserts.length).padStart(12, '0'),
+          id: row.id || (table === 'hs_documents' ? DOC_ID : '11111111-1111-4111-8111-' + String(state.inserts.length).padStart(12, '0')),
           updated_at: '2026-10-12T00:00:00.000Z',
         };
         if (table === 'hs_doc_folders') state.folders.push(inserted);
         if (table === 'hs_documents') state.documents.push(inserted);
+        if (table === 'hs_files') {
+          state.files = state.files || [];
+          state.files.push(inserted);
+        }
         return {
           select() {
             return { single: async () => ({ data: { id: inserted.id }, error: null }) };
@@ -102,7 +115,13 @@ function client(state) {
         };
       },
       single: async () => {
-        const row = state.documents.find(doc => filters.every(([column, value]) => doc[column] === value));
+        const pools = {
+          hs_documents: state.documents,
+          hs_files: state.files || [],
+          hs_doc_folders: state.folders,
+        };
+        const pool = pools[table] || [];
+        const row = pool.find(item => filters.every(([column, value]) => item[column] === value));
         return { data: row || null, error: row ? null : { message: 'missing' } };
       },
       then(resolve, reject) {
@@ -110,8 +129,12 @@ function client(state) {
         if (table === 'hs_doc_folders') data = state.folders;
         else if (table === 'hs_documents') data = state.documents;
         else if (table === 'hs_document_shares') data = state.shares;
+        else if (table === 'hs_folder_shares') data = state.folderShares || [];
+        else if (table === 'hs_files') data = state.files || [];
         else if (table === 'hs_lesson_documents') {
           data = (state.lessonLinks || []).filter(link => filters.every(([column, value]) => link[column] === value));
+        } else if (table === 'hs_lesson_files') {
+          data = (state.fileLinks || []).filter(link => filters.every(([column, value]) => link[column] === value));
         }
         return Promise.resolve({ data, error: null }).then(resolve, reject);
       },
@@ -128,6 +151,7 @@ function client(state) {
           list: async () => ({ data: [], error: null }),
           remove: async () => ({ error: null }),
           copy: async () => ({ error: null }),
+          createSignedUrl: async (path) => ({ data: { signedUrl: 'https://signed.test/' + path }, error: null }),
         };
       },
     },
@@ -288,4 +312,135 @@ test('an open document lists only the lessons linked to it', async () => {
   assert.deepEqual(chips, ['Fractions · 2026-10-14']);
   doc.querySelector('.docs-lesson-chip').click();
   assert.equal(state.openedTask, 'lesson-1');
+});
+
+const MANAGER = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const SHARED_FOLDER = '44444444-4444-4444-8444-444444444444';
+const HIDDEN_FOLDER = '55555555-5555-4555-8555-555555555555';
+const NESTED_FOLDER = '66666666-6666-4666-8666-666666666666';
+const SHARED_FILE = '77777777-7777-4777-8777-777777777777';
+const HIDDEN_FILE = '88888888-8888-4888-8888-888888888888';
+const SHARED_DOC = '99999999-9999-4999-8999-999999999999';
+
+test('a student sees a shared folder and its files, and not an unshared folder', async () => {
+  const window = dom();
+  const state = {
+    folders: [
+      { id: SHARED_FOLDER, owner_id: MANAGER, owner_email: 'manager@example.com', parent_id: null, name: 'Maths with Lucas' },
+      { id: NESTED_FOLDER, owner_id: MANAGER, owner_email: 'manager@example.com', parent_id: SHARED_FOLDER, name: 'Algebra' },
+      { id: HIDDEN_FOLDER, owner_id: MANAGER, owner_email: 'manager@example.com', parent_id: null, name: 'Private parent notes' },
+    ],
+    documents: [
+      { id: SHARED_DOC, owner_id: MANAGER, owner_email: 'manager@example.com', folder_id: NESTED_FOLDER, title: 'Worksheet', updated_at: '2026-10-13T00:00:00.000Z' },
+      { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab', owner_id: MANAGER, owner_email: 'manager@example.com', folder_id: HIDDEN_FOLDER, title: 'Secret plan', updated_at: '2026-10-13T00:00:00.000Z' },
+    ],
+    shares: [],
+    folderShares: [{ folder_id: SHARED_FOLDER, shared_with_email: 'student.one@example.com', permission: 'edit' }],
+    files: [
+      { id: SHARED_FILE, owner_id: MANAGER, owner_email: 'manager@example.com', folder_id: NESTED_FOLDER, name: 'fractions.pdf', storage_path: SHARED_FILE, mime_type: 'application/pdf', size_bytes: 2048, updated_at: '2026-10-13T00:00:00.000Z' },
+      { id: HIDDEN_FILE, owner_id: MANAGER, owner_email: 'manager@example.com', folder_id: HIDDEN_FOLDER, name: 'secret.pdf', storage_path: HIDDEN_FILE, mime_type: 'application/pdf', size_bytes: 2048, updated_at: '2026-10-13T00:00:00.000Z' },
+    ],
+    fileLinks: [{ task_id: 'lesson-1', file_id: SHARED_FILE }],
+    tasks: [{ id: 'lesson-1', title: 'Fractions', startDate: '2026-10-14' }],
+    inserts: [],
+    updates: [],
+    deletes: [],
+    upserts: [],
+    directory: { 'manager@example.com': { name: 'Parent', role: 'manager', authId: MANAGER } },
+    heading: [],
+  };
+  mount(window, state, student);
+  window.HSDocuments.open();
+  await new Promise(resolve => setTimeout(resolve, 30));
+  const doc = window.document;
+  const folderNames = Array.from(doc.querySelectorAll('.docs-folder-name')).map(node => node.textContent);
+  assert.ok(folderNames.includes('Maths with Lucas'));
+  assert.ok(folderNames.includes('Algebra'));
+  assert.equal(folderNames.includes('Private parent notes'), false);
+  assert.equal(doc.getElementById('docsFileLimit').textContent, '50 MB max');
+  assert.equal(doc.getElementById('docsUpload').disabled, false);
+
+  const algebra = Array.from(doc.querySelectorAll('.docs-folder-name')).find(node => node.textContent === 'Algebra');
+  algebra.click();
+  assert.equal(doc.querySelector('.docs-card-title').textContent, 'Worksheet');
+  assert.match(doc.body.textContent, /fractions\.pdf/);
+  assert.doesNotMatch(doc.body.textContent, /secret\.pdf/);
+  assert.equal(doc.getElementById('docsUpload').disabled, false);
+  assert.match(doc.querySelector('.docs-file-card .docs-card-meta').textContent, /1 lesson/);
+
+  const viewOnly = state.folderShares[0];
+  viewOnly.permission = 'view';
+  window.HSDocuments.open();
+  await new Promise(resolve => setTimeout(resolve, 30));
+  const sharedRoot = Array.from(doc.querySelectorAll('.docs-folder-name')).find(node => node.textContent === 'Maths with Lucas');
+  sharedRoot.click();
+  assert.equal(doc.getElementById('docsUpload').disabled, true);
+  assert.equal(doc.getElementById('docsNewDoc').disabled, true);
+  assert.equal(Array.from(doc.querySelectorAll('.docs-mini')).some(node => node.textContent === 'Delete'), false);
+});
+
+test('uploading a file stores it in the open folder and rejects anything over 50 MB', async () => {
+  const window = dom();
+  const state = {
+    folders: [],
+    documents: [],
+    shares: [],
+    files: [],
+    folderShares: [],
+    inserts: [],
+    updates: [],
+    deletes: [],
+    upserts: [],
+    uploads: [],
+    directory: {},
+    heading: [],
+  };
+  const original = client(state);
+  const wrapped = {
+    from: original.from,
+    storage: {
+      from(bucket) {
+        const api = original.storage.from(bucket);
+        return {
+          ...api,
+          upload: async (path, file) => {
+            state.uploads.push({ bucket, path, size: file.size, type: file.type });
+            return { error: null };
+          },
+        };
+      },
+    },
+  };
+  window.HSDocuments.mount({
+    supabase: wrapped,
+    getUser: () => student,
+    getDirectory: () => state.directory,
+    setPageHeading() {},
+    getTasks: () => [],
+  });
+  window.HSDocuments.open();
+  await new Promise(resolve => setTimeout(resolve, 30));
+  const doc = window.document;
+  const big = new window.File([new Uint8Array(8)], 'huge.pdf', { type: 'application/pdf' });
+  Object.defineProperty(big, 'size', { value: 52428801 });
+  const input = doc.getElementById('docsFileInput');
+  Object.defineProperty(input, 'files', { configurable: true, value: [big] });
+  input.dispatchEvent(new window.Event('change'));
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(state.inserts.length, 0);
+  assert.match(doc.getElementById('docsError').textContent, /50 MB/);
+
+  const small = new window.File([new Uint8Array([1, 2, 3, 4])], 'notes.pdf', { type: 'application/pdf' });
+  Object.defineProperty(input, 'files', { configurable: true, value: [small] });
+  input.dispatchEvent(new window.Event('change'));
+  await new Promise(resolve => setTimeout(resolve, 40));
+  const inserted = state.inserts.find(item => item.table === 'hs_files');
+  assert.equal(inserted.row.name, 'notes.pdf');
+  assert.equal(inserted.row.owner_id, OWNER);
+  assert.equal(inserted.row.folder_id, null);
+  assert.equal(inserted.row.storage_path, inserted.row.id);
+  assert.equal(inserted.row.size_bytes, 4);
+  assert.equal(state.uploads[0].bucket, 'hs-files');
+  assert.equal(state.uploads[0].path, inserted.row.id);
+  assert.match(doc.body.textContent, /notes\.pdf/);
 });

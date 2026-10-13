@@ -1,12 +1,18 @@
 (function () {
   const BUCKET = 'hs-document-images';
+  const FILE_BUCKET = 'hs-files';
+  const FILE_LIMIT = 52428800;
   const SHARED = '__shared';
   let ctx = null;
   let folders = [];
   let documents = [];
   let shares = [];
+  let folderShares = [];
+  let files = [];
+  let fileLinks = [];
   let lessonLinks = [];
   let lessonToken = 0;
+  let previewFile = null;
   let libraryEmail = '';
   let selectedFolderId = null;
   let openDoc = null;
@@ -49,26 +55,99 @@
     return person && person.name ? person.name : 'Student';
   }
 
-  function canEdit(doc) {
+  function folderAccess(folderId) {
     const user = me();
-    if (!user || !doc) return false;
-    if (user.role === 'manager') return true;
-    if (doc.owner_id === user.id) return true;
-    return shares.some(share => share.document_id === doc.id && share.shared_with_email === user.email && share.permission === 'edit');
-  }
-
-  function canManage(doc) {
-    const user = me();
-    if (!user || !doc) return false;
-    return user.role === 'manager' || doc.owner_id === user.id;
+    if (!user || !folderId) return '';
+    if (user.role === 'manager') return 'edit';
+    let current = folders.find(folder => folder.id === folderId);
+    let best = '';
+    let guard = 0;
+    while (current && guard < 12) {
+      if (current.owner_id === user.id) return 'edit';
+      const share = folderShares.find(item => item.folder_id === current.id && item.shared_with_email === user.email);
+      if (share && share.permission === 'edit') return 'edit';
+      if (share && share.permission === 'view' && !best) best = 'view';
+      current = current.parent_id ? folders.find(folder => folder.id === current.parent_id) : null;
+      guard += 1;
+    }
+    return best;
   }
 
   function permissionFor(doc) {
     const user = me();
     if (!user || !doc) return '';
     if (doc.owner_id === user.id) return 'owner';
+    if (user.role === 'manager') return 'manage';
     const share = shares.find(item => item.document_id === doc.id && item.shared_with_email === user.email);
-    return share ? share.permission : (user.role === 'manager' ? 'manage' : '');
+    const viaFolder = folderAccess(doc.folder_id);
+    if ((share && share.permission === 'edit') || viaFolder === 'edit') return 'edit';
+    if (share || viaFolder === 'view') return 'view';
+    return '';
+  }
+
+  function canEdit(doc) {
+    const access = permissionFor(doc);
+    return access === 'owner' || access === 'manage' || access === 'edit';
+  }
+
+  function canManage(doc) {
+    const user = me();
+    if (!user || !doc) return false;
+    if (user.role === 'manager' || doc.owner_id === user.id) return true;
+    return folderAccess(doc.folder_id) === 'edit';
+  }
+
+  function canSeeDocument(doc) {
+    const user = me();
+    if (!user || !doc) return false;
+    if (user.role === 'manager') return doc.owner_email === libraryEmail;
+    if (doc.owner_id === user.id) return true;
+    if (shares.some(share => share.document_id === doc.id && share.shared_with_email === user.email)) return true;
+    return folderAccess(doc.folder_id) !== '';
+  }
+
+  function canEditFile(file) {
+    const user = me();
+    if (!user || !file) return false;
+    if (user.role === 'manager' || file.owner_id === user.id) return true;
+    return folderAccess(file.folder_id) === 'edit';
+  }
+
+  function canSeeFile(file) {
+    const user = me();
+    if (!user || !file) return false;
+    if (user.role === 'manager') return file.owner_email === libraryEmail;
+    if (file.owner_id === user.id) return true;
+    return folderAccess(file.folder_id) !== '';
+  }
+
+  function canChangeFolder(folder) {
+    const user = me();
+    if (!user || !folder) return false;
+    if (user.role === 'manager' || folder.owner_id === user.id) return true;
+    return folderAccess(folder.id) === 'edit';
+  }
+
+  function selectedFolder() {
+    if (!selectedFolderId || selectedFolderId === SHARED) return null;
+    return folders.find(folder => folder.id === selectedFolderId) || null;
+  }
+
+  function canAddHere() {
+    const user = me();
+    const library = currentLibrary();
+    if (!user || !library || !library.id || selectedFolderId === SHARED) return false;
+    if (user.role === 'manager') return true;
+    if (!selectedFolderId) return library.email === user.email;
+    return folderAccess(selectedFolderId) === 'edit';
+  }
+
+  function targetOwner() {
+    const folder = selectedFolder();
+    if (folder) return { id: folder.owner_id, email: folder.owner_email };
+    const library = currentLibrary();
+    if (!library || !library.id) return null;
+    return { id: library.id, email: library.email };
   }
 
   function setError(message) {
@@ -148,14 +227,17 @@
   async function loadAll() {
     const token = ++loadToken;
     const client = ctx.supabase;
-    const [folderRes, docRes, shareRes, linkRes] = await Promise.all([
+    const [folderRes, docRes, shareRes, folderShareRes, fileRes, linkRes, fileLinkRes] = await Promise.all([
       client.from('hs_doc_folders').select('id, owner_id, owner_email, parent_id, name, updated_at').order('name'),
       client.from('hs_documents').select('id, owner_id, owner_email, folder_id, title, updated_at').order('updated_at', { ascending: false }),
       client.from('hs_document_shares').select('document_id, shared_with_email, permission'),
+      client.from('hs_folder_shares').select('folder_id, shared_with_email, permission'),
+      client.from('hs_files').select('id, owner_id, owner_email, folder_id, name, storage_path, mime_type, size_bytes, updated_at').order('name'),
       client.from('hs_lesson_documents').select('task_id, document_id'),
+      client.from('hs_lesson_files').select('task_id, file_id'),
     ]);
     if (token !== loadToken) return false;
-    const error = folderRes.error || docRes.error || shareRes.error;
+    const error = folderRes.error || docRes.error || shareRes.error || folderShareRes.error || fileRes.error;
     if (error) {
       setError('Documents could not be loaded.');
       console.error('Document library failed', error);
@@ -164,16 +246,20 @@
     folders = folderRes.data || [];
     documents = docRes.data || [];
     shares = shareRes.data || [];
+    folderShares = folderShareRes.data || [];
+    files = fileRes.data || [];
     lessonLinks = linkRes.error ? [] : (linkRes.data || []);
+    fileLinks = fileLinkRes.error ? [] : (fileLinkRes.data || []);
     if (linkRes.error) console.error('Lesson links failed', linkRes.error);
+    if (fileLinkRes.error) console.error('File lesson links failed', fileLinkRes.error);
     setError('');
     return true;
   }
 
-  function renderFolderBranch(parentId, container, depth) {
+  function renderFolderBranch(parentId, container, depth, ownerEmail) {
     if (depth > 12) return;
     folders
-      .filter(folder => folder.owner_email === libraryEmail && (folder.parent_id || null) === parentId)
+      .filter(folder => (folder.parent_id || null) === parentId && (!ownerEmail || folder.owner_email === ownerEmail))
       .forEach(folder => {
         const row = document.createElement('div');
         row.className = 'docs-folder-row' + (selectedFolderId === folder.id ? ' active' : '');
@@ -187,21 +273,48 @@
           renderLibrary();
         });
         row.appendChild(button);
-        const rename = document.createElement('button');
-        rename.type = 'button';
-        rename.className = 'docs-mini';
-        rename.textContent = 'Rename';
-        rename.addEventListener('click', () => renameFolder(folder));
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'docs-mini danger';
-        remove.textContent = 'Delete';
-        remove.addEventListener('click', () => deleteFolder(folder));
-        row.appendChild(rename);
-        row.appendChild(remove);
+        if (folderShares.some(share => share.folder_id === folder.id)) {
+          const flag = document.createElement('span');
+          flag.className = 'docs-shared-flag';
+          flag.textContent = 'Shared';
+          row.appendChild(flag);
+        }
+        if (canChangeFolder(folder)) {
+          const rename = document.createElement('button');
+          rename.type = 'button';
+          rename.className = 'docs-mini';
+          rename.textContent = 'Rename';
+          rename.addEventListener('click', () => renameFolder(folder));
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'docs-mini danger';
+          remove.textContent = 'Delete';
+          remove.addEventListener('click', () => deleteFolder(folder));
+          row.appendChild(rename);
+          row.appendChild(remove);
+        }
+        if (me() && me().role === 'manager') {
+          const share = document.createElement('button');
+          share.type = 'button';
+          share.className = 'docs-mini';
+          share.textContent = 'Share';
+          share.addEventListener('click', () => shareFolder(folder));
+          row.appendChild(share);
+        }
         container.appendChild(row);
-        renderFolderBranch(folder.id, container, depth + 1);
+        renderFolderBranch(folder.id, container, depth + 1, ownerEmail);
       });
+  }
+
+  function sharedRoots() {
+    const user = me();
+    if (!user || user.role === 'manager') return [];
+    return folders.filter(folder => {
+      if (folder.owner_id === user.id) return false;
+      if (!folderAccess(folder.id)) return false;
+      if (!folder.parent_id) return true;
+      return !folders.some(item => item.id === folder.parent_id);
+    });
   }
 
   function renderFolders() {
@@ -219,9 +332,49 @@
     });
     root.appendChild(rootBtn);
     pane.appendChild(root);
-    renderFolderBranch(null, pane, 0);
+    renderFolderBranch(null, pane, 0, libraryEmail);
+    const roots = sharedRoots();
+    if (roots.length) {
+      pane.appendChild(sectionLabel('Shared folders'));
+      roots.forEach(folder => {
+        const row = document.createElement('div');
+        row.className = 'docs-folder-row' + (selectedFolderId === folder.id ? ' active' : '');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'docs-folder-name';
+        button.textContent = folder.name;
+        button.addEventListener('click', () => {
+          selectedFolderId = folder.id;
+          renderLibrary();
+        });
+        row.appendChild(button);
+        const access = folderAccess(folder.id);
+        if (access) {
+          const flag = document.createElement('span');
+          flag.className = 'docs-shared-flag';
+          flag.textContent = access === 'edit' ? 'Can edit' : 'View';
+          row.appendChild(flag);
+        }
+        if (canChangeFolder(folder)) {
+          const rename = document.createElement('button');
+          rename.type = 'button';
+          rename.className = 'docs-mini';
+          rename.textContent = 'Rename';
+          rename.addEventListener('click', () => renameFolder(folder));
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'docs-mini danger';
+          remove.textContent = 'Delete';
+          remove.addEventListener('click', () => deleteFolder(folder));
+          row.appendChild(rename);
+          row.appendChild(remove);
+        }
+        pane.appendChild(row);
+        renderFolderBranch(folder.id, pane, 1, null);
+      });
+    }
     const user = me();
-    const sharedDocs = documents.filter(doc => user && doc.owner_email !== user.email && shares.some(share => share.document_id === doc.id && share.shared_with_email === user.email));
+    const sharedDocs = documents.filter(doc => isLooseShare(doc));
     if (user && user.role !== 'manager' && sharedDocs.length) {
       const shared = document.createElement('div');
       shared.className = 'docs-root-row' + (selectedFolderId === SHARED ? ' active' : '');
@@ -254,33 +407,62 @@
     wrap.hidden = items.length < 2;
   }
 
+  function isLooseShare(doc) {
+    const user = me();
+    if (!user || !doc || doc.owner_id === user.id) return false;
+    if (!shares.some(share => share.document_id === doc.id && share.shared_with_email === user.email)) return false;
+    return folderAccess(doc.folder_id) === '';
+  }
+
+  function sectionLabel(text) {
+    const label = document.createElement('div');
+    label.className = 'docs-section-label';
+    label.textContent = text;
+    return label;
+  }
+
   function visibleDocuments() {
     const query = $('docsSearch').value.trim().toLowerCase();
     const user = me();
     if (query) {
       return documents.filter(doc => {
-        if ((doc.title || '').toLowerCase().indexOf(query) === -1) return false;
-        if (selectedFolderId === SHARED) {
-          return user && doc.owner_email !== user.email && shares.some(share => share.document_id === doc.id && share.shared_with_email === user.email);
-        }
-        return doc.owner_email === libraryEmail;
+        if ((doc.title || '').toLowerCase().indexOf(query) === -1 || !canSeeDocument(doc)) return false;
+        if (user && user.role === 'manager') return doc.owner_email === libraryEmail;
+        return true;
       });
     }
-    if (selectedFolderId === SHARED) {
-      return documents.filter(doc => user && doc.owner_email !== user.email && shares.some(share => share.document_id === doc.id && share.shared_with_email === user.email));
+    if (selectedFolderId === SHARED) return documents.filter(isLooseShare);
+    if (selectedFolderId) return documents.filter(doc => doc.folder_id === selectedFolderId && canSeeDocument(doc));
+    return documents.filter(doc => doc.owner_email === libraryEmail && !doc.folder_id && canSeeDocument(doc));
+  }
+
+  function visibleFiles() {
+    const query = $('docsSearch').value.trim().toLowerCase();
+    const user = me();
+    if (query) {
+      return files.filter(file => {
+        if ((file.name || '').toLowerCase().indexOf(query) === -1 || !canSeeFile(file)) return false;
+        if (user && user.role === 'manager') return file.owner_email === libraryEmail;
+        return true;
+      });
     }
-    return documents.filter(doc => doc.owner_email === libraryEmail && (doc.folder_id || null) === (selectedFolderId || null));
+    if (selectedFolderId === SHARED) return [];
+    if (selectedFolderId) return files.filter(file => file.folder_id === selectedFolderId && canSeeFile(file));
+    return files.filter(file => file.owner_email === libraryEmail && !file.folder_id && canSeeFile(file));
   }
 
   function renderList() {
     const list = $('docsList');
     list.innerHTML = '';
     const rows = visibleDocuments();
+    const fileRows = visibleFiles();
     const searching = $('docsSearch').value.trim() !== '';
-    if (!rows.length) {
+    if (!rows.length && !fileRows.length) {
       const empty = document.createElement('div');
       empty.className = 'docs-empty';
-      empty.textContent = searching ? 'No documents with that title.' : 'No documents in this folder yet.';
+      empty.textContent = searching
+        ? 'No documents or files with that name.'
+        : (canAddHere() ? 'Nothing in this folder yet. Upload a file up to 50 MB, or create a document.' : 'Nothing in this folder yet.');
       list.appendChild(empty);
       return;
     }
@@ -327,6 +509,80 @@
       card.appendChild(actions);
       list.appendChild(card);
     });
+    fileRows.forEach(file => list.appendChild(fileCard(file, searching)));
+  }
+
+  function fileKind(file) {
+    const name = String(file.name || '');
+    const ext = name.indexOf('.') === -1 ? '' : name.split('.').pop().toLowerCase();
+    const known = {
+      pdf: 'PDF', doc: 'Word', docx: 'Word', xls: 'Excel', xlsx: 'Excel',
+      ppt: 'PowerPoint', pptx: 'PowerPoint', png: 'Image', jpg: 'Image', jpeg: 'Image',
+      gif: 'Image', webp: 'Image', txt: 'Text', csv: 'CSV',
+    };
+    if (known[ext]) return known[ext];
+    if (String(file.mime_type || '').toLowerCase().indexOf('image/') === 0) return 'Image';
+    return ext ? ext.toUpperCase().slice(0, 8) : 'File';
+  }
+
+  function formatBytes(bytes) {
+    const size = Number(bytes) || 0;
+    if (size < 1024) return size + ' B';
+    if (size < 1048576) return (size / 1024).toFixed(size < 10240 ? 1 : 0) + ' KB';
+    return (size / 1048576).toFixed(1) + ' MB';
+  }
+
+  function previewKind(file) {
+    const mime = String(file.mime_type || '').toLowerCase();
+    const name = String(file.name || '').toLowerCase();
+    if (mime.indexOf('image/') === 0 || /\.(png|jpe?g|gif|webp)$/.test(name)) return 'image';
+    if (mime === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
+    return '';
+  }
+
+  function fileCard(file, searching) {
+    const card = document.createElement('div');
+    card.className = 'docs-card docs-file-card';
+    const text = document.createElement('button');
+    text.type = 'button';
+    text.style.flex = '1';
+    text.style.border = '0';
+    text.style.background = 'transparent';
+    text.style.color = 'inherit';
+    text.style.textAlign = 'left';
+    text.style.padding = '0';
+    const title = document.createElement('div');
+    title.className = 'docs-card-title';
+    const kind = document.createElement('span');
+    kind.className = 'docs-file-kind';
+    kind.textContent = fileKind(file);
+    title.appendChild(kind);
+    title.appendChild(document.createTextNode(' ' + (file.name || 'File')));
+    const meta = document.createElement('div');
+    meta.className = 'docs-card-meta';
+    const bits = [formatBytes(file.size_bytes)];
+    if (searching) bits.push(file.folder_id ? (folderPath(file.folder_id) || 'Folder') : 'Library');
+    if (!canEditFile(file)) bits.push('View only');
+    const lessonCount = fileLinks.filter(link => link.file_id === file.id).length;
+    if (lessonCount) bits.push(lessonCount === 1 ? '1 lesson' : lessonCount + ' lessons');
+    const when = file.updated_at ? new Date(file.updated_at).toLocaleString() : '';
+    if (when) bits.push(when);
+    meta.textContent = bits.join(' · ');
+    text.appendChild(title);
+    text.appendChild(meta);
+    text.addEventListener('click', () => openFile(file.id));
+    const actions = document.createElement('div');
+    actions.className = 'docs-card-actions';
+    actions.appendChild(actionButton(previewKind(file) ? 'Preview' : 'Open', () => openFile(file.id)));
+    actions.appendChild(actionButton('Download', () => downloadFile(file)));
+    if (canEditFile(file)) {
+      actions.appendChild(actionButton('Rename', () => renameFile(file)));
+      actions.appendChild(actionButton('Move', () => moveFile(file)));
+      actions.appendChild(actionButton('Delete', () => deleteFile(file), true));
+    }
+    card.appendChild(text);
+    card.appendChild(actions);
+    return card;
   }
 
   function actionButton(label, onClick, danger) {
@@ -350,10 +606,11 @@
     const crumb = folder ? folderPath(folder.id) : (selectedFolderId === SHARED ? 'Shared with me' : 'Library');
     ctx.setPageHeading('Documents', crumb);
     const createFolder = $('docsNewFolder');
-    const library = currentLibrary();
-    const blocked = !library || !library.id || selectedFolderId === SHARED;
-    createFolder.disabled = blocked || (folder && depthOf(folder.id) >= 7);
-    $('docsNewDoc').disabled = blocked;
+    const adding = canAddHere();
+    createFolder.disabled = !adding || (folder && depthOf(folder.id) >= 7);
+    $('docsNewDoc').disabled = !adding;
+    const upload = $('docsUpload');
+    if (upload) upload.disabled = !adding;
   }
 
   function closeMenus() {
@@ -806,8 +1063,8 @@
   }
 
   async function createFolder() {
-    const library = currentLibrary();
-    if (!library || !library.id) {
+    const owner = targetOwner();
+    if (!owner) {
       setError('That student login is not linked yet. Save the student once in Settings.');
       return;
     }
@@ -821,8 +1078,8 @@
     const { error } = await ctx.supabase.from('hs_doc_folders').insert({
       name,
       parent_id: parentId,
-      owner_id: library.id,
-      owner_email: library.email,
+      owner_id: owner.id,
+      owner_email: owner.email,
     });
     if (error) {
       setError('The folder could not be created.');
@@ -848,7 +1105,8 @@
   async function deleteFolder(folder) {
     const ids = descendantIds(folder.id);
     const inside = documents.filter(doc => ids.indexOf(doc.folder_id) !== -1);
-    const extra = (ids.length - 1) + ' subfolder' + (ids.length - 1 === 1 ? '' : 's') + ' and ' + inside.length + ' document' + (inside.length === 1 ? '' : 's');
+    const insideFiles = files.filter(file => ids.indexOf(file.folder_id) !== -1);
+    const extra = (ids.length - 1) + ' subfolder' + (ids.length - 1 === 1 ? '' : 's') + ', ' + inside.length + ' document' + (inside.length === 1 ? '' : 's') + ', and ' + insideFiles.length + ' file' + (insideFiles.length === 1 ? '' : 's');
     if (!confirm('Delete folder "' + folder.name + '"? This also deletes ' + extra + '.')) return;
     for (const doc of inside) await removeStoredImages(doc.owner_email, doc.id);
     const { error } = await ctx.supabase.from('hs_doc_folders').delete().eq('id', folder.id);
@@ -863,8 +1121,8 @@
   }
 
   async function createDocument() {
-    const library = currentLibrary();
-    if (!library || !library.id) {
+    const owner = targetOwner();
+    if (!owner) {
       setError('That student login is not linked yet. Save the student once in Settings.');
       return;
     }
@@ -873,8 +1131,8 @@
       title: 'Untitled document',
       body_html: '<p></p>',
       folder_id: folderId,
-      owner_id: library.id,
-      owner_email: library.email,
+      owner_id: owner.id,
+      owner_email: owner.email,
     }).select('id').single();
     if (error || !data) {
       setError('The document could not be created.');
@@ -914,8 +1172,20 @@
     await openDocument(inserted.data.id);
   }
 
+  function moveChoices(ownerEmail, ownerId) {
+    const user = me();
+    return folders.filter(folder => {
+      if (folder.owner_email !== ownerEmail) return false;
+      if (!user) return false;
+      if (user.role === 'manager' || folder.owner_id === user.id || ownerId === user.id) return true;
+      return folderAccess(folder.id) === 'edit';
+    });
+  }
+
   async function moveDocument(doc) {
-    const choices = folders.filter(folder => folder.owner_email === doc.owner_email);
+    const user = me();
+    const choices = moveChoices(doc.owner_email, doc.owner_id);
+    const allowRoot = user && (user.role === 'manager' || doc.owner_id === user.id);
     let select = null;
     const ok = await openDialog({
       title: 'Move document',
@@ -925,10 +1195,12 @@
         field.className = 'field';
         field.appendChild(document.createTextNode('Folder'));
         select = document.createElement('select');
-        const root = document.createElement('option');
-        root.value = '';
-        root.textContent = 'Library (no folder)';
-        select.appendChild(root);
+        if (allowRoot) {
+          const root = document.createElement('option');
+          root.value = '';
+          root.textContent = 'Library (no folder)';
+          select.appendChild(root);
+        }
         choices.forEach(folder => {
           const option = document.createElement('option');
           option.value = folder.id;
@@ -942,6 +1214,7 @@
     });
     if (!ok) return;
     const folderId = select.value || null;
+    if (!folderId && !allowRoot) return;
     const { error } = await ctx.supabase.from('hs_documents').update({ folder_id: folderId }).eq('id', doc.id);
     if (error) {
       setError('The document could not be moved.');
@@ -1079,6 +1352,293 @@
     }
   }
 
+  async function shareFolder(folder) {
+    const students = Object.entries(directory()).filter(([, person]) => person && person.role === 'student');
+    const relevant = students.filter(([email]) => email !== folder.owner_email);
+    if (!relevant.length) {
+      setError('There are no other students to share with.');
+      return;
+    }
+    const picks = {};
+    const ok = await openDialog({
+      title: 'Share folder',
+      okLabel: 'Save sharing',
+      build(body) {
+        const hint = document.createElement('p');
+        hint.className = 'docs-share-hint';
+        hint.textContent = 'People you share this folder with can open everything inside it, including subfolders, documents, and files. Can edit includes upload, rename, move, and delete.';
+        body.appendChild(hint);
+        relevant.forEach(([email, person]) => {
+          const row = document.createElement('div');
+          row.className = 'docs-share-row';
+          const name = document.createElement('span');
+          name.textContent = person.name || 'Student';
+          const select = document.createElement('select');
+          select.setAttribute('aria-label', 'Access for ' + (person.name || 'student'));
+          [['', 'No access'], ['view', 'Can view'], ['edit', 'Can edit']].forEach(choice => {
+            const option = document.createElement('option');
+            option.value = choice[0];
+            option.textContent = choice[1];
+            select.appendChild(option);
+          });
+          const existing = folderShares.find(share => share.folder_id === folder.id && share.shared_with_email === email);
+          select.value = existing ? existing.permission : '';
+          picks[email] = select;
+          row.appendChild(name);
+          row.appendChild(select);
+          body.appendChild(row);
+        });
+      },
+    });
+    if (!ok) return;
+    const wanted = Object.entries(picks).filter(([, select]) => select.value).map(([email, select]) => ({
+      folder_id: folder.id,
+      shared_with_email: email,
+      permission: select.value,
+    }));
+    const existing = folderShares.filter(share => share.folder_id === folder.id);
+    const remove = existing.filter(share => !wanted.some(item => item.shared_with_email === share.shared_with_email)).map(share => share.shared_with_email);
+    if (remove.length) {
+      const deleted = await ctx.supabase.from('hs_folder_shares').delete().eq('folder_id', folder.id).in('shared_with_email', remove);
+      if (deleted.error) {
+        setError('Sharing could not be updated.');
+        return;
+      }
+    }
+    if (wanted.length) {
+      const saved = await ctx.supabase.from('hs_folder_shares').upsert(wanted, { onConflict: 'folder_id,shared_with_email' });
+      if (saved.error) {
+        setError('Sharing could not be updated.');
+        console.error('Folder share upsert failed', saved.error);
+        return;
+      }
+    }
+    await loadAll();
+    renderLibrary();
+  }
+
+  function cleanFileName(name) {
+    const cleaned = String(name || 'File').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 240);
+    return cleaned || 'File';
+  }
+
+  async function uploadFiles(list) {
+    const incoming = Array.from(list || []);
+    if (!incoming.length || !canAddHere()) return;
+    const owner = targetOwner();
+    if (!owner) {
+      setError('That student login is not linked yet. Save the student once in Settings.');
+      return;
+    }
+    const folderId = selectedFolderId && selectedFolderId !== SHARED ? selectedFolderId : null;
+    let message = '';
+    for (const file of incoming) {
+      const name = cleanFileName(file.name);
+      if (!file.size) {
+        message = '"' + name + '" is empty.';
+        continue;
+      }
+      if (file.size > FILE_LIMIT) {
+        message = '"' + name + '" is larger than 50 MB.';
+        continue;
+      }
+      const id = crypto.randomUUID();
+      const mime = String(file.type || 'application/octet-stream').slice(0, 200) || 'application/octet-stream';
+      const inserted = await ctx.supabase.from('hs_files').insert({
+        id: id,
+        owner_id: owner.id,
+        owner_email: owner.email,
+        folder_id: folderId,
+        name: name,
+        storage_path: id,
+        mime_type: mime,
+        size_bytes: file.size,
+      }).select('id').single();
+      if (inserted.error || !inserted.data) {
+        message = '"' + name + '" could not be saved.';
+        console.error('File insert failed', inserted.error);
+        continue;
+      }
+      const uploaded = await ctx.supabase.storage.from(FILE_BUCKET).upload(id, file, { contentType: mime, upsert: false });
+      if (uploaded.error) {
+        await ctx.supabase.from('hs_files').delete().eq('id', id);
+        message = '"' + name + '" could not be uploaded.';
+        console.error('File upload failed', uploaded.error);
+        continue;
+      }
+    }
+    await loadAll();
+    renderLibrary();
+    if (message) setError(message);
+  }
+
+  async function signedFileUrl(file, seconds, downloadName) {
+    const options = downloadName ? { download: downloadName } : undefined;
+    const signed = await ctx.supabase.storage.from(FILE_BUCKET).createSignedUrl(file.storage_path, seconds, options);
+    if (signed.error || !signed.data || !signed.data.signedUrl) return '';
+    return signed.data.signedUrl;
+  }
+
+  async function downloadFile(file) {
+    const url = await signedFileUrl(file, 120, file.name || 'file');
+    if (!url) {
+      setError('The file could not be downloaded.');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.name || 'file';
+    link.rel = 'noopener';
+    link.click();
+  }
+
+  function closePreview() {
+    const preview = $('docsPreview');
+    if (!preview) return;
+    preview.hidden = true;
+    const body = $('docsPreviewBody');
+    if (body) body.innerHTML = '';
+    previewFile = null;
+  }
+
+  async function openFile(id) {
+    setError('');
+    const loaded = await ctx.supabase.from('hs_files').select('*').eq('id', id).single();
+    if (loaded.error || !loaded.data) {
+      setError('That file could not be opened.');
+      return;
+    }
+    const file = loaded.data;
+    previewFile = file;
+    const preview = $('docsPreview');
+    const body = $('docsPreviewBody');
+    $('docsPreviewTitle').textContent = file.name || 'File';
+    body.innerHTML = '';
+    const waiting = document.createElement('p');
+    waiting.className = 'docs-preview-note';
+    waiting.textContent = 'Opening a private link…';
+    body.appendChild(waiting);
+    preview.hidden = false;
+    const url = await signedFileUrl(file, 300);
+    if (previewFile !== file) return;
+    body.innerHTML = '';
+    if (!url) {
+      const note = document.createElement('p');
+      note.className = 'docs-preview-note';
+      note.textContent = 'The file could not be opened.';
+      body.appendChild(note);
+      return;
+    }
+    const linked = await ctx.supabase.from('hs_lesson_files').select('task_id, file_id').eq('file_id', file.id);
+    if (previewFile !== file) return;
+    if (!linked.error) fileLinks = fileLinks.filter(link => link.file_id !== file.id).concat(linked.data || []);
+    const kind = previewKind(file);
+    if (kind === 'image') {
+      const image = document.createElement('img');
+      image.alt = file.name || 'Image';
+      image.src = url;
+      body.appendChild(image);
+    } else if (kind === 'pdf') {
+      const frame = document.createElement('iframe');
+      frame.title = file.name || 'PDF';
+      frame.src = url;
+      body.appendChild(frame);
+    } else {
+      const note = document.createElement('p');
+      note.className = 'docs-preview-note';
+      note.textContent = 'Preview is available for images and PDFs. Download this file to open it.';
+      body.appendChild(note);
+    }
+    const lessons = window.HSLessonLinks
+      ? window.HSLessonLinks.lessonsForFile(fileLinks, lessonTasks(), file.id)
+      : [];
+    if (lessons.length) {
+      const row = document.createElement('div');
+      row.className = 'docs-preview-lessons';
+      lessons.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'docs-lesson-chip';
+        button.textContent = item.label;
+        button.addEventListener('click', () => {
+          closePreview();
+          if (ctx.openTask) ctx.openTask(item.id);
+        });
+        row.appendChild(button);
+      });
+      body.appendChild(row);
+    }
+  }
+
+  async function renameFile(file) {
+    const name = await askText('Rename file', 'File name', file.name);
+    if (!name || name === file.name) return;
+    const { error } = await ctx.supabase.from('hs_files').update({ name: cleanFileName(name) }).eq('id', file.id);
+    if (error) {
+      setError('The file could not be renamed.');
+      return;
+    }
+    await loadAll();
+    renderLibrary();
+  }
+
+  async function moveFile(file) {
+    const user = me();
+    const choices = moveChoices(file.owner_email, file.owner_id);
+    const allowRoot = user && (user.role === 'manager' || file.owner_id === user.id);
+    let select = null;
+    const ok = await openDialog({
+      title: 'Move file',
+      okLabel: 'Move',
+      build(body) {
+        const field = document.createElement('label');
+        field.className = 'field';
+        field.appendChild(document.createTextNode('Folder'));
+        select = document.createElement('select');
+        if (allowRoot) {
+          const root = document.createElement('option');
+          root.value = '';
+          root.textContent = 'Library (no folder)';
+          select.appendChild(root);
+        }
+        choices.forEach(folder => {
+          const option = document.createElement('option');
+          option.value = folder.id;
+          option.textContent = folderPath(folder.id);
+          if (folder.id === file.folder_id) option.selected = true;
+          select.appendChild(option);
+        });
+        field.appendChild(select);
+        body.appendChild(field);
+      },
+    });
+    if (!ok || !select) return;
+    const folderId = select.value || null;
+    if (!folderId && !allowRoot) return;
+    const { error } = await ctx.supabase.from('hs_files').update({ folder_id: folderId }).eq('id', file.id);
+    if (error) {
+      setError('The file could not be moved.');
+      console.error('File move failed', error);
+      return;
+    }
+    await loadAll();
+    renderLibrary();
+  }
+
+  async function deleteFile(file) {
+    if (!confirm('Delete file "' + (file.name || 'File') + '"?')) return;
+    const { error } = await ctx.supabase.from('hs_files').delete().eq('id', file.id);
+    if (error) {
+      setError('The file could not be deleted.');
+      console.error('File delete failed', error);
+      return;
+    }
+    fileLinks = fileLinks.filter(link => link.file_id !== file.id);
+    if (ctx.onLinksChanged) ctx.onLinksChanged();
+    await loadAll();
+    renderLibrary();
+  }
+
   function bind() {
     $('docsLibraryPicker').addEventListener('change', () => {
       libraryEmail = $('docsLibraryPicker').value;
@@ -1088,6 +1648,33 @@
     $('docsSearch').addEventListener('input', renderList);
     $('docsNewFolder').addEventListener('click', createFolder);
     $('docsNewDoc').addEventListener('click', createDocument);
+    $('docsUpload').addEventListener('click', () => $('docsFileInput').click());
+    $('docsFileInput').addEventListener('change', event => {
+      const chosen = Array.from(event.target.files || []);
+      try { event.target.value = ''; } catch (error) { /* some browsers reject resetting a file input */ }
+      uploadFiles(chosen);
+    });
+    const zone = $('docsLibrary');
+    zone.addEventListener('dragover', event => {
+      if (!canAddHere()) return;
+      event.preventDefault();
+      $('docsList').classList.add('is-dropping');
+    });
+    zone.addEventListener('dragleave', event => {
+      if (event.relatedTarget && zone.contains(event.relatedTarget)) return;
+      $('docsList').classList.remove('is-dropping');
+    });
+    zone.addEventListener('drop', event => {
+      $('docsList').classList.remove('is-dropping');
+      if (!canAddHere()) return;
+      event.preventDefault();
+      uploadFiles(event.dataTransfer && event.dataTransfer.files);
+    });
+    $('docsPreviewClose').addEventListener('click', closePreview);
+    $('docsPreviewDownload').addEventListener('click', () => { if (previewFile) downloadFile(previewFile); });
+    $('docsPreview').addEventListener('click', event => {
+      if (event.target === $('docsPreview')) closePreview();
+    });
     $('docsBack').addEventListener('click', () => showLibrary());
     $('docsSave').addEventListener('click', saveNow);
     $('docsTitle').addEventListener('input', markDirty);
@@ -1127,6 +1714,10 @@
       if (event.target === $('docsDialog')) closeDialog(false);
     });
     document.addEventListener('keydown', event => {
+      if (!$('docsPreview').hidden && event.key === 'Escape') {
+        closePreview();
+        return;
+      }
       if (!$('docsDialog').hidden && event.key === 'Escape') closeDialog(false);
       if (!document.body.classList.contains('view-documents') || $('docsEditor').hidden) return;
       const key = event.key.toLowerCase();
@@ -1163,6 +1754,7 @@
   }
 
   const showDocument = openDocument;
+  const showFile = openFile;
 
   window.HSDocuments = {
     mount(next) {
@@ -1179,6 +1771,14 @@
     openDocument(id) {
       return showDocument(id);
     },
+    openFile(id) {
+      const snapshot = capture();
+      destroyEditor();
+      showLibraryPane();
+      if (snapshot) persist(snapshot);
+      closePreview();
+      return showFile(id);
+    },
     refreshLessons() {
       if (!openDoc || $('docsEditor').hidden) return Promise.resolve();
       return renderLinkedLessons(openDoc.id);
@@ -1188,6 +1788,7 @@
       destroyEditor();
       if (snapshot) persist(snapshot);
       closeMenus();
+      closePreview();
     },
   };
 })();
