@@ -1046,6 +1046,7 @@
             <button type="button" class="btn btn-sm btn-ghost" id="docsBack">Back</button>
             <input id="docsTitle" class="docs-title" maxlength="200" aria-label="Document title" autocomplete="off">
             <span id="docsSaveState" class="docs-save-state" aria-live="polite">Saved</span>
+            <div id="docsPresence" class="docs-presence" aria-live="polite"></div>
             <div class="docs-editor-actions">
               <button type="button" class="btn btn-sm btn-ghost" id="docsSave">Save</button>
               <button type="button" class="btn btn-sm btn-ghost" id="docsDuplicate">Duplicate</button>
@@ -1069,6 +1070,11 @@
           </div>
           <div id="docsLessons" class="docs-lessons" hidden></div>
           <p id="docsReadOnly" class="docs-readonly" hidden>You can read this document. Editing is turned off.</p>
+          <p id="docsConflict" class="docs-conflict" hidden>
+            <span id="docsConflictText"></span>
+            <button type="button" class="btn btn-sm" id="docsConflictLoad">Load their version</button>
+            <button type="button" class="btn btn-sm btn-ghost" id="docsConflictKeep">Keep mine</button>
+          </p>
           <div class="docs-page-scroll">
             <div class="docs-sheet"><div id="docsSurface"></div></div>
           </div>

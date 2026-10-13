@@ -37,6 +37,10 @@ it at any other Supabase project.
      The browser uses short-lived signed URLs. The bucket is not public
    - a lesson link (document or file) is visible only when that person can
      already read both the lesson and the item. Linking does not share either side
+   - open documents, folders, and files update live over private Realtime
+     channels. A student can join a document channel or receive a library
+     event only when they can already read that row. Saves carry a revision
+     so two people editing at once are not overwritten without a notice
    - deleting a lesson, document, or file removes its links and leaves the other side
    - the role is taken from `app_metadata`, never from `user_metadata`
 
