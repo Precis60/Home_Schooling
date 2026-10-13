@@ -24,6 +24,18 @@
   let loadToken = 0;
   let objectUrls = [];
   let dialogRead = null;
+  let inboxChannel = null;
+  let inboxTopic = '';
+  let docChannel = null;
+  let inboxTimer = null;
+  let pullTimer = null;
+  let presenceTimer = null;
+  let libraryTimer = null;
+  let libraryQueued = false;
+  let pullToken = 0;
+  let pendingRemote = null;
+  let echoedSave = null;
+  let libraryNotice = '';
 
   function $(id) { return document.getElementById(id); }
 
@@ -172,6 +184,7 @@
 
   function destroyEditor() {
     acceptUpdates = false;
+    stopDocumentChannel();
     if (editor) {
       editor.destroy();
       editor = null;
@@ -793,18 +806,346 @@
     $('docsWordCount').textContent = words === 1 ? '1 word' : words + ' words';
   }
 
+  function payloadOf(message) {
+    if (!message) return {};
+    if (message.payload && typeof message.payload === 'object') return message.payload;
+    return message;
+  }
+
+  function stopChannel(channel) {
+    if (!channel) return;
+    try {
+      if (ctx.supabase && ctx.supabase.removeChannel) ctx.supabase.removeChannel(channel);
+      else if (channel.unsubscribe) channel.unsubscribe();
+    } catch (error) {
+      console.error('Realtime unsubscribe failed', error);
+    }
+  }
+
+  function stopDocumentChannel() {
+    clearTimeout(pullTimer);
+    clearTimeout(presenceTimer);
+    pendingRemote = null;
+    hideConflict();
+    stopChannel(docChannel);
+    docChannel = null;
+    renderPresence();
+  }
+
+  function stopInbox() {
+    clearTimeout(inboxTimer);
+    clearTimeout(libraryTimer);
+    stopChannel(inboxChannel);
+    inboxChannel = null;
+    inboxTopic = '';
+  }
+
+  function ensureInbox() {
+    const user = me();
+    if (!user || !user.id || !ctx.supabase || !ctx.supabase.channel) return;
+    const topic = 'inbox:' + user.id;
+    if (inboxChannel && inboxTopic === topic) return;
+    stopInbox();
+    inboxTopic = topic;
+    inboxChannel = ctx.supabase.channel(topic, { config: { private: true } });
+    inboxChannel.on('broadcast', { event: 'changed' }, message => onInbox(payloadOf(message)));
+    inboxChannel.subscribe(status => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.error('Document inbox realtime failed', status);
+    });
+  }
+
+  function watchDocument(id) {
+    stopDocumentChannel();
+    const user = me();
+    if (!id || !user || !ctx.supabase || !ctx.supabase.channel) return;
+    const topic = 'doc:' + id;
+    docChannel = ctx.supabase.channel(topic, { config: { private: true } });
+    docChannel.on('presence', { event: 'sync' }, renderPresence);
+    docChannel.on('broadcast', { event: 'changed' }, message => onDocumentBroadcast(id, payloadOf(message)));
+    docChannel.subscribe(status => {
+      if (status === 'SUBSCRIBED') pushPresence();
+      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.error('Document presence realtime failed', status);
+    });
+  }
+
+  function onInbox(payload) {
+    if (!payload) return;
+    if (payload.kind === 'document' && openDoc && payload.id === openDoc.id) {
+      if (payload.op === 'DELETE') {
+        unavailableDocument();
+        return;
+      }
+      schedulePull(openDoc.id);
+    }
+    if (payload.kind === 'file' && previewFile && payload.id === previewFile.id && payload.op === 'DELETE') {
+      closePreview();
+      libraryNotice = 'That file was removed.';
+      setError(libraryNotice);
+    }
+    scheduleLibrary();
+  }
+
+  function onDocumentBroadcast(id, payload) {
+    if (!openDoc || openDoc.id !== id) return;
+    if (payload && payload.op === 'DELETE') {
+      unavailableDocument();
+      return;
+    }
+    schedulePull(id);
+  }
+
+  function schedulePull(id) {
+    clearTimeout(pullTimer);
+    pullTimer = setTimeout(() => pullRemote(id), 150);
+  }
+
+  function scheduleLibrary() {
+    libraryQueued = true;
+    clearTimeout(libraryTimer);
+    libraryTimer = setTimeout(refreshLibraryLive, 400);
+  }
+
+  function schedulePresence() {
+    clearTimeout(presenceTimer);
+    presenceTimer = setTimeout(pushPresence, 250);
+  }
+
+  function pushPresence() {
+    const user = me();
+    if (!docChannel || !user || !docChannel.track) return;
+    docChannel.track({
+      user_id: user.id,
+      name: user.name || (user.role === 'manager' ? 'Manager' : 'Student'),
+      editing: !!dirty,
+    });
+  }
+
+  function otherPeople() {
+    if (!docChannel || !docChannel.presenceState) return [];
+    const mine = me() ? me().id : '';
+    const byId = {};
+    Object.keys(docChannel.presenceState() || {}).forEach(key => {
+      (docChannel.presenceState()[key] || []).forEach(entry => {
+        if (!entry || !entry.user_id || entry.user_id === mine) return;
+        const name = String(entry.name || 'Someone').slice(0, 80);
+        const prev = byId[entry.user_id];
+        byId[entry.user_id] = { name, editing: !!((prev && prev.editing) || entry.editing) };
+      });
+    });
+    return Object.keys(byId).map(id => byId[id]);
+  }
+
+  function initials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    return parts.slice(0, 2).map(part => part.charAt(0).toUpperCase()).join('');
+  }
+
+  function renderPresence() {
+    const el = $('docsPresence');
+    if (!el) return;
+    el.innerHTML = '';
+    otherPeople().forEach(person => {
+      const chip = document.createElement('span');
+      chip.className = 'docs-presence-chip' + (person.editing ? ' is-editing' : '');
+      const avatar = document.createElement('span');
+      avatar.className = 'docs-presence-avatar';
+      avatar.setAttribute('aria-hidden', 'true');
+      avatar.textContent = initials(person.name);
+      const label = document.createElement('span');
+      label.textContent = person.name + (person.editing ? ' is editing' : ' is viewing');
+      chip.appendChild(avatar);
+      chip.appendChild(label);
+      el.appendChild(chip);
+    });
+  }
+
+  function hideConflict() {
+    pendingRemote = null;
+    const el = $('docsConflict');
+    if (el) el.hidden = true;
+  }
+
+  function showConflict() {
+    const el = $('docsConflict');
+    const text = $('docsConflictText');
+    if (!el || !text) return;
+    const editorName = otherPeople().filter(person => person.editing).map(person => person.name)[0]
+      || otherPeople().map(person => person.name)[0]
+      || 'Someone';
+    text.textContent = editorName + ' saved newer changes. Your edits are still here.';
+    el.hidden = false;
+  }
+
+  function localSnapshot() {
+    return {
+      title: $('docsTitle') ? ($('docsTitle').value.trim() || 'Untitled document') : '',
+      html: editor && window.HSEditor ? window.HSEditor.prepareHtmlForStorage(editor.getHTML()) : '',
+    };
+  }
+
+  async function pullRemote(id) {
+    const token = ++pullToken;
+    const loaded = await ctx.supabase.from('hs_documents').select('*').eq('id', id).single();
+    if (token !== pullToken || !openDoc || openDoc.id !== id) return;
+    if (loaded.error || !loaded.data) {
+      unavailableDocument();
+      return;
+    }
+    const data = loaded.data;
+    data.revision = Number(data.revision) || 1;
+    if (echoedSave && echoedSave.id === data.id && Number(echoedSave.revision) === data.revision && echoedSave.html === data.body_html && echoedSave.title === data.title) {
+      openDoc.revision = data.revision;
+      openDoc.updated_at = data.updated_at;
+      openDoc.body_html = data.body_html;
+      openDoc.title = data.title;
+      return;
+    }
+    if (data.revision === (Number(openDoc.revision) || 1) && data.body_html === openDoc.body_html && data.title === openDoc.title) return;
+    if (dirty) {
+      const local = localSnapshot();
+      if (local.html === data.body_html && local.title === data.title) {
+        openDoc.revision = data.revision;
+        openDoc.updated_at = data.updated_at;
+        dirty = false;
+        hideConflict();
+        setSaveState('Saved', 'is-saved');
+        schedulePresence();
+        return;
+      }
+      pendingRemote = data;
+      showConflict();
+      setSaveState('Newer changes', 'is-dirty');
+      return;
+    }
+    applyRemote(data);
+  }
+
+  function applyRemote(data) {
+    if (!editor || !openDoc || !data) return;
+    const scroller = document.querySelector('.docs-page-scroll');
+    const scrollTop = scroller ? scroller.scrollTop : 0;
+    const keepCaret = !!(editor.isFocused);
+    const selection = keepCaret && editor.state ? editor.state.selection : null;
+    const from = selection ? selection.from : null;
+    const to = selection ? selection.to : null;
+    acceptUpdates = false;
+    if (data.body_html !== openDoc.body_html) {
+      editor.commands.setContent(data.body_html || '<p></p>', false);
+      hydrate(editor);
+    }
+    const title = $('docsTitle');
+    if (title && document.activeElement !== title) title.value = data.title || '';
+    openDoc = data;
+    const row = documents.find(doc => doc.id === data.id);
+    if (row) {
+      row.title = data.title;
+      row.revision = data.revision;
+      row.updated_at = data.updated_at;
+    }
+    acceptUpdates = true;
+    dirty = false;
+    hideConflict();
+    setSaveState('Saved', 'is-saved');
+    if (keepCaret && from != null) {
+      try {
+        const max = editor.state.doc.content.size;
+        const start = Math.max(0, Math.min(from, max));
+        const end = Math.max(start, Math.min(to == null ? start : to, max));
+        editor.commands.setTextSelection({ from: start, to: end });
+      } catch (error) { /* the remote text no longer contains that caret */ }
+    }
+    if (scroller) scroller.scrollTop = scrollTop;
+    refreshToolbar();
+    ctx.setPageHeading(data.title || 'Document', 'Documents');
+    schedulePresence();
+  }
+
+  function unavailableDocument() {
+    if (!openDoc) return;
+    destroyEditor();
+    openDoc = null;
+    showLibraryPane();
+    libraryNotice = 'This document is no longer available.';
+    setError(libraryNotice);
+    scheduleLibrary();
+  }
+
+  async function refreshLibraryLive() {
+    if (!libraryQueued) return;
+    if (!$('docsDialog').hidden || ($('docsPreview') && !$('docsPreview').hidden)) return;
+    libraryQueued = false;
+    const list = $('docsList');
+    const folderPane = $('docsFolders');
+    const listTop = list ? list.scrollTop : 0;
+    const folderTop = folderPane ? folderPane.scrollTop : 0;
+    const ok = await loadAll();
+    if (!ok) return;
+    if (previewFile && !files.some(file => file.id === previewFile.id)) {
+      closePreview();
+      libraryNotice = 'That file was removed.';
+    }
+    if (libraryNotice) {
+      setError(libraryNotice);
+      libraryNotice = '';
+    }
+    if (openDoc && !$('docsEditor').hidden) syncOpenAccess();
+    if ($('docsEditor').hidden) {
+      renderLibrary();
+      if ($('docsList')) $('docsList').scrollTop = listTop;
+      if ($('docsFolders')) $('docsFolders').scrollTop = folderTop;
+    }
+  }
+
+  function syncOpenAccess() {
+    if (!openDoc || $('docsEditor').hidden || !editor) return;
+    const editable = canEdit(openDoc);
+    editor.setEditable(editable);
+    $('docsTitle').readOnly = !editable;
+    $('docsReadOnly').hidden = editable;
+    $('docsSave').hidden = !editable;
+    $('docsWordbar').hidden = !editable;
+    $('docsMove').hidden = !canManage(openDoc);
+    $('docsDelete').hidden = !canManage(openDoc);
+    if (!editable && dirty) {
+      dirty = false;
+      clearTimeout(saveTimer);
+      setSaveState('Saved', 'is-saved');
+    }
+  }
+
+  async function loadTheirVersion() {
+    const remote = pendingRemote;
+    if (!remote) return;
+    dirty = false;
+    clearTimeout(saveTimer);
+    applyRemote(remote);
+  }
+
+  function keepMyVersion() {
+    if (!pendingRemote || !openDoc) return;
+    openDoc.revision = pendingRemote.revision;
+    pendingRemote = null;
+    hideConflict();
+    dirty = true;
+    saveNow();
+  }
+
   function markDirty() {
     if (!acceptUpdates || !canEdit(openDoc)) return;
     dirty = true;
+    echoedSave = null;
     setSaveState('Unsaved changes', 'is-dirty');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveNow, 1200);
+    schedulePresence();
   }
 
   function capture() {
     if (!openDoc || !editor || !dirty || !canEdit(openDoc)) return null;
     const snapshot = {
       id: openDoc.id,
+      revision: Number(openDoc.revision) || 1,
       title: $('docsTitle').value.trim() || 'Untitled document',
       html: window.HSEditor.prepareHtmlForStorage(editor.getHTML()),
     };
@@ -815,29 +1156,50 @@
 
   async function persist(snapshot) {
     const token = ++saveToken;
+    const revision = Number(snapshot.revision) || 1;
+    const nextRevision = revision + 1;
+    echoedSave = { id: snapshot.id, revision: nextRevision, html: snapshot.html, title: snapshot.title };
     setSaveState('Saving…', '');
-    const { error } = await ctx.supabase.from('hs_documents').update({
+    const updated = await ctx.supabase.from('hs_documents').update({
       title: snapshot.title,
       body_html: snapshot.html,
-    }).eq('id', snapshot.id);
+      revision: nextRevision,
+    }).eq('id', snapshot.id).eq('revision', revision).select('revision, updated_at');
     if (token !== saveToken) return;
-    if (error) {
+    const message = updated.error && updated.error.message ? updated.error.message : '';
+    const rows = Array.isArray(updated.data) ? updated.data : [];
+    if (/revision conflict/i.test(message) || (!updated.error && !rows.length)) {
       dirty = true;
-      setSaveState("Couldn't save", 'is-error');
-      setError('The document could not be saved.');
-      console.error('Document save failed', error);
+      echoedSave = null;
+      setSaveState('Newer changes', 'is-dirty');
+      schedulePull(snapshot.id);
+      schedulePresence();
       return;
     }
+    if (updated.error) {
+      dirty = true;
+      echoedSave = null;
+      setSaveState("Couldn't save", 'is-error');
+      setError('The document could not be saved.');
+      console.error('Document save failed', updated.error);
+      schedulePresence();
+      return;
+    }
+    const saved = rows[0] || {};
     if (openDoc && openDoc.id === snapshot.id) {
       openDoc.title = snapshot.title;
       openDoc.body_html = snapshot.html;
+      openDoc.revision = saved.revision || nextRevision;
+      if (saved.updated_at) openDoc.updated_at = saved.updated_at;
     }
     const row = documents.find(doc => doc.id === snapshot.id);
     if (row) {
       row.title = snapshot.title;
-      row.updated_at = new Date().toISOString();
+      row.revision = saved.revision || nextRevision;
+      row.updated_at = saved.updated_at || new Date().toISOString();
     }
     setSaveState('Saved', 'is-saved');
+    schedulePresence();
   }
 
   function saveNow() {
@@ -864,6 +1226,7 @@
 
   async function openDocument(id) {
     setError('');
+    ensureInbox();
     const { data, error } = await ctx.supabase.from('hs_documents').select('*').eq('id', id).single();
     if (error || !data) {
       setError('That document could not be opened.');
@@ -873,6 +1236,7 @@
     destroyEditor();
     if (previous) persist(previous);
     openDoc = data;
+    openDoc.revision = Number(data.revision) || 1;
     $('docsLibrary').hidden = true;
     $('docsEditor').hidden = false;
     $('docsTitle').value = data.title || '';
@@ -904,6 +1268,7 @@
     setSaveState('Saved', 'is-saved');
     refreshToolbar();
     ctx.setPageHeading(data.title || 'Document', 'Documents');
+    watchDocument(data.id);
     await renderLinkedLessons(data.id);
   }
 
@@ -1014,6 +1379,7 @@
     const read = dialogRead;
     dialogRead = null;
     if (read) read(value);
+    if (libraryQueued) scheduleLibrary();
   }
 
   function openDialog(options) {
@@ -1499,6 +1865,7 @@
     const body = $('docsPreviewBody');
     if (body) body.innerHTML = '';
     previewFile = null;
+    if (libraryQueued) scheduleLibrary();
   }
 
   async function openFile(id) {
@@ -1677,6 +2044,8 @@
     });
     $('docsBack').addEventListener('click', () => showLibrary());
     $('docsSave').addEventListener('click', saveNow);
+    if ($('docsConflictLoad')) $('docsConflictLoad').addEventListener('click', loadTheirVersion);
+    if ($('docsConflictKeep')) $('docsConflictKeep').addEventListener('click', keepMyVersion);
     $('docsTitle').addEventListener('input', markDirty);
     $('docsDuplicate').addEventListener('click', () => openDoc && duplicateDocument(openDoc.id));
     $('docsMove').addEventListener('click', () => openDoc && moveDocument(openDoc));
@@ -1745,6 +2114,7 @@
   }
 
   async function showLibrary() {
+    ensureInbox();
     const snapshot = capture();
     destroyEditor();
     showLibraryPane();
@@ -1772,6 +2142,7 @@
       return showDocument(id);
     },
     openFile(id) {
+      ensureInbox();
       const snapshot = capture();
       destroyEditor();
       showLibraryPane();
@@ -1789,6 +2160,7 @@
       if (snapshot) persist(snapshot);
       closeMenus();
       closePreview();
+      stopInbox();
     },
   };
 })();

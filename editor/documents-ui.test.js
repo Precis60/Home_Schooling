@@ -41,7 +41,12 @@ function dom() {
       </div>
       <div id="docsLessons" hidden></div>
       <p id="docsReadOnly" hidden></p>
-      <div id="docsSurface"></div>
+      <div id="docsPresence"></div>
+      <p id="docsConflict" hidden><span id="docsConflictText"></span>
+        <button id="docsConflictLoad" type="button"></button>
+        <button id="docsConflictKeep" type="button"></button>
+      </p>
+      <div class="docs-page-scroll"><div id="docsSurface"></div></div>
       <span id="docsWordCount"></span>
     </div>
     <div id="docsDialog" hidden>
@@ -84,7 +89,8 @@ function client(state) {
       eq(column, value) { filters.push([column, value]); return api; },
       in() { return api; },
       update(row) {
-        state.updates.push({ table, row });
+        state.updates.push({ table, row, filters });
+        api._pendingUpdate = row;
         return api;
       },
       delete() {
@@ -125,6 +131,19 @@ function client(state) {
         return { data: row || null, error: row ? null : { message: 'missing' } };
       },
       then(resolve, reject) {
+        if (api._pendingUpdate && table === 'hs_documents') {
+          const matches = state.documents.filter(doc => filters.every(([column, value]) => {
+            if (column === 'revision') return (Number(doc.revision) || 1) === value;
+            return doc[column] === value;
+          }));
+          matches.forEach(doc => {
+            Object.assign(doc, api._pendingUpdate, { updated_at: '2026-10-13T00:00:00.000Z' });
+          });
+          return Promise.resolve({
+            data: matches.map(doc => ({ revision: doc.revision, updated_at: doc.updated_at })),
+            error: null,
+          }).then(resolve, reject);
+        }
         let data = [];
         if (table === 'hs_doc_folders') data = state.folders;
         else if (table === 'hs_documents') data = state.documents;
@@ -141,7 +160,33 @@ function client(state) {
     };
     return api;
   }
+  function channel(name, config) {
+    const handlers = [];
+    const api = {
+      topic: name,
+      on(type, filter, cb) {
+        handlers.push({ type, filter, cb });
+        return api;
+      },
+      subscribe(cb) {
+        state.channels = state.channels || [];
+        state.channels.push({ name, config, handlers });
+        if (cb) cb('SUBSCRIBED');
+        return api;
+      },
+      track(payload) {
+        state.presence = state.presence || [];
+        state.presence.push(payload);
+        return Promise.resolve('ok');
+      },
+      unsubscribe() { return Promise.resolve('ok'); },
+      presenceState() { return state.remotePresence || {}; },
+    };
+    return api;
+  }
   return {
+    channel,
+    removeChannel() {},
     from: query,
     storage: {
       from() {
@@ -443,4 +488,105 @@ test('uploading a file stores it in the open folder and rejects anything over 50
   assert.equal(state.uploads[0].bucket, 'hs-files');
   assert.equal(state.uploads[0].path, inserted.row.id);
   assert.match(doc.body.textContent, /notes\.pdf/);
+});
+
+test('a private inbox and document channel carry live edits without clobbering a local draft', async () => {
+  const window = dom();
+  const state = {
+    folders: [],
+    documents: [
+      { id: DOC_ID, owner_id: OWNER, owner_email: 'student.one@example.com', folder_id: null, title: 'Algebra notes', updated_at: '2026-10-12T00:00:00.000Z', revision: 1, body_html: '<p>Hello</p>' },
+    ],
+    shares: [],
+    inserts: [],
+    updates: [],
+    deletes: [],
+    upserts: [],
+    directory: {},
+    heading: [],
+    channels: [],
+    remotePresence: {
+      lucas: [{ user_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', name: 'Lucas', editing: true }],
+    },
+  };
+  mount(window, state, student);
+  window.HSDocuments.open();
+  await new Promise(resolve => setTimeout(resolve, 30));
+  const inbox = state.channels.find(item => item.name === 'inbox:' + OWNER);
+  assert.ok(inbox);
+  assert.equal(inbox.config.config.private, true);
+
+  window.document.querySelector('.docs-card button').click();
+  await new Promise(resolve => setTimeout(resolve, 40));
+  const docChannel = state.channels.find(item => item.name === 'doc:' + DOC_ID);
+  assert.ok(docChannel);
+  assert.equal(docChannel.config.config.private, true);
+  assert.equal(state.presence[0].name, 'Alex Example');
+  assert.equal(state.presence[0].editing, false);
+  const presence = docChannel.handlers.find(item => item.type === 'presence');
+  presence.cb();
+  assert.match(window.document.getElementById('docsPresence').textContent, /Lucas is editing/);
+
+  const scroller = window.document.querySelector('.docs-page-scroll');
+  scroller.scrollTop = 48;
+  state.documents[0] = Object.assign({}, state.documents[0], {
+    body_html: '<p>Hello from Lucas</p>',
+    revision: 2,
+    title: 'Algebra notes',
+  });
+  const changed = docChannel.handlers.find(item => item.filter && item.filter.event === 'changed');
+  changed.cb({ payload: { kind: 'document', id: DOC_ID, op: 'UPDATE', revision: 2 } });
+  await new Promise(resolve => setTimeout(resolve, 220));
+  assert.match(window.document.getElementById('docsSurface').textContent, /Hello from Lucas/);
+  assert.equal(scroller.scrollTop, 48);
+  assert.equal(window.document.getElementById('docsConflict').hidden, true);
+
+  window.document.getElementById('docsTitle').value = 'My draft title';
+  window.document.getElementById('docsTitle').dispatchEvent(new window.Event('input'));
+  state.documents[0] = Object.assign({}, state.documents[0], {
+    body_html: '<p>Lucas kept going</p>',
+    revision: 3,
+  });
+  changed.cb({ payload: { kind: 'document', id: DOC_ID, op: 'UPDATE', revision: 3 } });
+  await new Promise(resolve => setTimeout(resolve, 220));
+  assert.match(window.document.getElementById('docsSurface').textContent, /Hello from Lucas/);
+  assert.equal(window.document.getElementById('docsConflict').hidden, false);
+  assert.match(window.document.getElementById('docsConflictText').textContent, /Lucas saved newer changes/);
+  assert.equal(window.document.getElementById('docsTitle').value, 'My draft title');
+
+  window.document.getElementById('docsConflictLoad').click();
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.match(window.document.getElementById('docsSurface').textContent, /Lucas kept going/);
+  assert.equal(window.document.getElementById('docsConflict').hidden, true);
+});
+
+test('a library inbox event shows a folder added by someone else', async () => {
+  const window = dom();
+  const state = {
+    folders: [],
+    documents: [],
+    shares: [],
+    inserts: [],
+    updates: [],
+    deletes: [],
+    upserts: [],
+    directory: {},
+    heading: [],
+    channels: [],
+  };
+  mount(window, state, student);
+  window.HSDocuments.open();
+  await new Promise(resolve => setTimeout(resolve, 30));
+  const inbox = state.channels.find(item => item.name === 'inbox:' + OWNER);
+  state.folders.push({
+    id: '22222222-2222-4222-8222-222222222222',
+    owner_id: OWNER,
+    owner_email: 'student.one@example.com',
+    parent_id: null,
+    name: 'Science',
+  });
+  const changed = inbox.handlers.find(item => item.filter && item.filter.event === 'changed');
+  changed.cb({ payload: { kind: 'folder', id: state.folders[0].id, op: 'INSERT' } });
+  await new Promise(resolve => setTimeout(resolve, 460));
+  assert.match(window.document.getElementById('docsFolders').textContent, /Science/);
 });
